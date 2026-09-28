@@ -1,0 +1,61 @@
+# **LANGUAGE FORENSIC ADDENDUM: POWERBUILDER — UI BLUEPRINT**
+*(Injected into Universal Core V3 at the language_specific_tiers slot)**
+
+---
+
+## **L.1 DataWindow / DataStore Binding DNA**
+**MANDATORY FOR ALL PB ARTIFACTS:** PowerBuilder DataWindows and DataStores are the primary data contract layer. Every `.srd` or embedded DataWindow object MUST be fully decomposed.
+
+**[ANTI-TRUNCATION COUNT-AND-MAP GUARDRAIL — PB EDITION]:** Before generating the DataWindow table, physically count every column defined in the DataWindow source (`.srd` header or embedded definition). Print the integer count in the section header (e.g., `### DataWindow: dw_order_lines (Total Columns: 22)`). Generate one table row per column. ZERO omissions — invisible/hidden columns are equally required.
+
+| Column Name (Legacy) | Modern Field Name | PB Type | Nullable | Update Characteristic | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [legacy_col_name] | [modernFieldName] | [e.g., char(20)] | [Y/N] | [Updateable/Key/ReadOnly] | [Why this field exists] |
+
+**Update Characteristics to Extract (from `.srd` header or DataWindow painter source):**
+* **`updatewhere`**: Identify the update strategy: `key` (Key Columns Only), `keyandmodifiable` (Key + Changed Columns), or `keyandstamp` (Key + Timestamp).
+* **`keymodification`**: Document if `delete+insert` is used for Primary Key changes instead of UPDATE.
+* **`table.update`**: Name of the physical table that receives DML from this DataWindow.
+* **`table.delete`**, **`table.insert`**: Confirm if separate tables are used for insert vs. delete operations.
+* **Retrieve Arguments**: List all `Retrieve(arg1, arg2, ...)` arguments — these form the GET request's required parameters.
+
+**DataStore Detection:** If a `DataStore` object is used instead of a visible DataWindow, document it here with its `DataObject =` assignment, retrieve arguments, and the event that triggers `Retrieve()`.
+
+---
+
+## **L.2 Ancestor / Descendant Inheritance Model**
+**MANDATORY:** PowerBuilder uses visual and non-visual inheritance. Failing to trace the ancestor chain results in missing 60–80% of the actual business logic.
+
+* **Inheritance Chain:** Identify the full ancestor chain: `[this artifact] → [immediate ancestor] → ... → [base class]`.
+* **Overridden Events/Functions:** List every `event` or `function` in this artifact that overrides the ancestor's implementation. Document the `CALL SUPER::` usage — is it called at the start, end, or not at all?
+* **Extended Logic:** Document logic that is added to (not replacing) the ancestor behavior via `CALL SUPER::` at the start of the event.
+* **Instance Variable Declarations:** Inventory all `instance variables` declared in the current object and its ancestor — these are the object's state machine.
+
+| Event / Function | Defined In | Overrides Ancestor? | CALL SUPER? | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `open` | [this artifact] | Yes | End | Extends ancestor open with security check. |
+
+---
+
+## **L.3 PBL Library Search Path Context**
+* **PBL Membership:** Identify which `.pbl` file this artifact belongs to (from the `@Library` declaration or project configuration).
+* **Library Search Order:** If the project references multiple PBLs, document the search order — earlier PBLs shadow later ones for the same object name.
+* **Cross-PBL Calls:** Identify any `CREATE [ObjectName]` or function calls that resolve to objects in a different PBL, representing a cross-library dependency.
+
+---
+
+## **L.4 PowerBuilder Open Event — Deep-Scan Addendum**
+*(Augments Tier 3.5 of the core prompt — apply PB-specific rules here)*
+
+**MANDATORY:** In PowerBuilder, the `open` event is the primary entry point for all screen initialization logic. It MUST be fully decomposed.
+
+| Init Step | Event | PB Literal Source | Business Meaning | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| e.g., Set Transaction Object | `open` | `dw_1.SetTransObject(SQLCA)` | Binds the DataWindow to the default database session. | TRCE-UI-{artifact_id}-L{line_start} |
+
+**Key PB-Specific Items to Capture:**
+* `SetTransObject()` calls — which Transaction Object (SQLCA or custom) is bound to which DataWindow.
+* `Retrieve()` calls at open time — these are the initial data load queries; document their arguments.
+* `Modify()` calls — runtime DataWindow column property changes at open (e.g., hiding columns, setting tab order, changing edit styles based on context).
+* Security-based `Visible` / `Enabled` assignments — controls shown/hidden based on `ls_user_role` or equivalent.
+* `OpenSheet()` / `OpenSheetWithParm()` calls initiated from this object's open event.

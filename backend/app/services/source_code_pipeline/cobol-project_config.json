@@ -1,0 +1,459 @@
+{
+  "_data_dictionary": {
+    "HEADER": "Requirement Intelligence Platform (RIP) - COBOL Edition"
+  },
+  "modernization_manifesto": {
+    "Coding Standards": "Target TypeScript/React for web-based frontends and Java Spring Boot for backend services.",
+    "Database Strategy": "Replace COBOL EXEC SQL, EXEC CICS, and file-based I/O (ISAM/QSAM) with RESTful API endpoints and JPA/Hibernate repositories.",
+    "Architecture": "Decouple monolithic COBOL programs, shared Copybooks, and JCL orchestration into stateless, cloud-native microservices.",
+    "Security": "Enforce JWT-based authentication and Role-Based Access Control (RBAC) for all newly generated API contracts."
+  },
+  "target_architecture": {
+    "_note": "Source-language-independent Stage 6 target contract (same schema as vb6/pb). Worked example for this COBOL CardDemo project. COBOL is batch-heavy (JCL-orchestrated), so the batch component types and batch_strategy are populated more fully than the UI-centric stacks; the online path is identical. Blank fields are DECIDED by the generator and recorded in the decision ledger.",
+    "topology": "modular-monolith",
+    "system": {
+      "_note": "Tier-B system/platform decisions (v2 spec). Monolith-first for autonomy: one deployable, schema-per-module ownership, in-process module calls, with a documented services-extraction seam.",
+      "data_ownership": "schema-per-module (single PostgreSQL; no cross-module table access — calls go through module interfaces)",
+      "identity": {
+        "issuer": "in-app Auth module (login/refresh/logout) issuing JWTs",
+        "token": "JWT (access + refresh)",
+        "refresh": true,
+        "rbac_source": "legacy sign-on program + user administration program (users, roles, permissions)"
+      },
+      "config_secrets": {
+        "config": "Spring profiles + externalized config",
+        "secrets": "AWS Secrets Manager"
+      },
+      "deployment": {
+        "packaging": "single Spring Boot container (one deployable) + static React bundle; batch jobs run in-process, triggered on a schedule",
+        "ci": "build -> test -> containerize pipeline",
+        "iac": "AWS ECS service + RDS (PostgreSQL) baseline; scheduled triggers (EventBridge) for batch jobs",
+        "environments": [
+          "dev",
+          "stage",
+          "prod"
+        ]
+      },
+      "data_migration": {
+        "approach": "one-time ETL from legacy VSAM/QSAM files and DB2 tables to PostgreSQL with copybook-driven per-field mapping",
+        "cutover": "freeze-and-migrate with reconciliation against legacy control totals (HIGH-RISK: human-gated)"
+      },
+      "observability": {
+        "logging": "SLF4J structured JSON + correlation id",
+        "metrics": "Micrometer -> CloudWatch",
+        "tracing": "in-process (single deployable); add distributed tracing only if services are extracted",
+        "health": true
+      },
+      "testing": {
+        "unit": "JUnit 5",
+        "integration": "Testcontainers (PostgreSQL)",
+        "acceptance_gate": "app compiles, boots green, smoke + API/contract tests pass, and each batch job runs to completion on a fixture dataset"
+      },
+      "concurrency": "optimistic-locking (JPA @Version on editable entities)",
+      "audit": true
+    },
+    "build": "Maven (backend) + pnpm (frontend)",
+    "runtime": "JDK 21 / Node 20",
+    "tech_allowlist": [
+      "Java 21",
+      "Spring Boot 3",
+      "Spring Web",
+      "Spring Data JPA",
+      "Hibernate",
+      "Spring Security (JWT)",
+      "Spring Batch",
+      "Bean Validation",
+      "MapStruct",
+      "Flyway",
+      "React 18",
+      "TypeScript 5",
+      "Vite",
+      "Axios",
+      "PostgreSQL 16",
+      "Maven",
+      "pnpm",
+      "AWS ECS",
+      "AWS RDS",
+      "AWS API Gateway",
+      "AWS EventBridge",
+      "AWS Secrets Manager"
+    ],
+    "architecture_style": "microservices",
+    "layers": [
+      {
+        "id": "ARC-LYR-001",
+        "name": "Presentation",
+        "responsibility": "React/TypeScript UI; no business logic.",
+        "allowed_dependencies": [
+          "ARC-LYR-002"
+        ]
+      },
+      {
+        "id": "ARC-LYR-002",
+        "name": "API",
+        "responsibility": "REST controllers, request/response DTOs, JWT/RBAC enforcement.",
+        "allowed_dependencies": [
+          "ARC-LYR-003"
+        ]
+      },
+      {
+        "id": "ARC-LYR-003",
+        "name": "Application",
+        "responsibility": "Use-case services, batch jobs, transaction boundaries, orchestration.",
+        "allowed_dependencies": [
+          "ARC-LYR-004",
+          "ARC-LYR-005"
+        ]
+      },
+      {
+        "id": "ARC-LYR-004",
+        "name": "Domain",
+        "responsibility": "Entities, value objects, domain rules (framework-free).",
+        "allowed_dependencies": []
+      },
+      {
+        "id": "ARC-LYR-005",
+        "name": "Infrastructure",
+        "responsibility": "JPA repositories, batch readers/writers, external adapters.",
+        "allowed_dependencies": [
+          "ARC-LYR-004"
+        ]
+      }
+    ],
+    "component_types": [
+      {
+        "name": "Controller",
+        "layer": "ARC-LYR-002",
+        "folder": "src/main/java/**/web",
+        "naming": "<Feature>Controller",
+        "template_ref": "controller.tmpl"
+      },
+      {
+        "name": "DTO",
+        "layer": "ARC-LYR-002",
+        "folder": "src/main/java/**/web/dto",
+        "naming": "<Feature>Request|<Feature>Response",
+        "template_ref": "dto.tmpl"
+      },
+      {
+        "name": "Service",
+        "layer": "ARC-LYR-003",
+        "folder": "src/main/java/**/service",
+        "naming": "<Feature>Service",
+        "template_ref": "service.tmpl"
+      },
+      {
+        "name": "Entity",
+        "layer": "ARC-LYR-004",
+        "folder": "src/main/java/**/domain",
+        "naming": "<Entity>",
+        "template_ref": "entity.tmpl"
+      },
+      {
+        "name": "Repository",
+        "layer": "ARC-LYR-005",
+        "folder": "src/main/java/**/repository",
+        "naming": "<Entity>Repository",
+        "template_ref": "repository.tmpl"
+      },
+      {
+        "name": "Mapper",
+        "layer": "ARC-LYR-003",
+        "folder": "src/main/java/**/mapper",
+        "naming": "<Entity>Mapper",
+        "template_ref": "mapper.tmpl"
+      },
+      {
+        "name": "BatchJob",
+        "layer": "ARC-LYR-003",
+        "folder": "src/main/java/**/batch",
+        "naming": "<Job>Job",
+        "template_ref": "batch_job.tmpl"
+      },
+      {
+        "name": "ItemReader",
+        "layer": "ARC-LYR-005",
+        "folder": "src/main/java/**/batch/reader",
+        "naming": "<Job>Reader",
+        "template_ref": "item_reader.tmpl"
+      },
+      {
+        "name": "ItemProcessor",
+        "layer": "ARC-LYR-003",
+        "folder": "src/main/java/**/batch/processor",
+        "naming": "<Job>Processor",
+        "template_ref": "item_processor.tmpl"
+      },
+      {
+        "name": "ItemWriter",
+        "layer": "ARC-LYR-005",
+        "folder": "src/main/java/**/batch/writer",
+        "naming": "<Job>Writer",
+        "template_ref": "item_writer.tmpl"
+      },
+      {
+        "name": "ReactComponent",
+        "layer": "ARC-LYR-001",
+        "folder": "web/src/features/<feature>",
+        "naming": "<Feature>.tsx",
+        "template_ref": "react_component.tmpl"
+      },
+      {
+        "name": "ApiClient",
+        "layer": "ARC-LYR-001",
+        "folder": "web/src/api",
+        "naming": "<feature>Api.ts",
+        "template_ref": "api_client.tmpl"
+      }
+    ],
+    "naming_conventions": {
+      "java_package_root": "com.carddemo",
+      "rest_path": "/api/v1/<resource>",
+      "table": "snake_case",
+      "class": "PascalCase",
+      "react_component": "PascalCase"
+    },
+    "folder_structure": {
+      "root": "one Maven module (backend) + one Vite app (web) per microservice",
+      "mapping_rules": [
+        "One microservice per bounded context (module) from module_manifest.",
+        "Shared/Infrastructure module -> a common library, not a service.",
+        "Feature code is placed by component_type folder rules above.",
+        "Batch programs map to Spring Batch jobs under the owning module's batch package."
+      ]
+    },
+    "cross_cutting": [
+      {
+        "concern": "security",
+        "approach": "Spring Security with JWT bearer tokens; RBAC via method-level @PreAuthorize on controllers."
+      },
+      {
+        "concern": "logging",
+        "approach": "SLF4J + structured JSON logs; correlation id per request/job."
+      },
+      {
+        "concern": "error_handling",
+        "approach": "@ControllerAdvice returning RFC 7807 problem+json; batch jobs use skip/retry + fail-fast policies."
+      },
+      {
+        "concern": "transactions",
+        "approach": "Spring @Transactional at the Application-service boundary; chunk-level transactions for batch."
+      },
+      {
+        "concern": "configuration",
+        "approach": "Spring profiles + externalized config; secrets from AWS Secrets Manager."
+      },
+      {
+        "concern": "validation",
+        "approach": "Bean Validation on request DTOs."
+      }
+    ],
+    "nfrs": [
+      {
+        "category": "performance",
+        "target": "p95 API latency < 300ms",
+        "architectural_response": "stateless services, connection pooling, read models where needed."
+      },
+      {
+        "category": "availability",
+        "target": "99.9%",
+        "architectural_response": "multi-AZ ECS, health checks, graceful shutdown."
+      },
+      {
+        "category": "security",
+        "target": "no unauthenticated write paths",
+        "architectural_response": "JWT/RBAC enforced at API layer."
+      },
+      {
+        "category": "batch-throughput",
+        "target": "nightly batch window met",
+        "architectural_response": "chunk-oriented Spring Batch with restart/checkpointing and parallel steps where safe."
+      }
+    ],
+    "batch_strategy": {
+      "technology": "Spring Batch",
+      "scheduling": "scheduled triggers (AWS EventBridge) replacing legacy JCL job scheduling",
+      "chunking": "chunk-oriented processing (reader -> processor -> writer) for large record volumes",
+      "restart_policy": "restartable jobs with checkpointing and skip/retry policies",
+      "_note": "Central to this COBOL system (JCL-orchestrated batch programs map to Spring Batch jobs)."
+    },
+    "data": {
+      "persistence": "Spring Data JPA / Hibernate",
+      "migrations": "Flyway",
+      "transaction_boundaries": "per Application-service use case; per-chunk for batch"
+    }
+  },
+  "project": {
+    "id": "cobol_carddemo",
+    "name": "Enterprise Card Payment Demo Application by Amazon",
+    "client": "Internal Transformation Team",
+    "source_paradigm": "cobol",
+    "plugins": [
+      "cobol"
+    ],
+    "source_path": "input/carddemo",
+    "target_stack": {
+      "frontend": "React/TypeScript",
+      "backend": "Java Spring Boot",
+      "infrastructure": "AWS Cloud",
+      "architecture": "Microservices",
+      "database": "PostgreSQL"
+    }
+  },
+  "llm": {
+    "_note": "LLM provider configuration for the RIP pipeline. To switch providers, change 'active_provider' to one of: openai | anthropic | gemini | deepseek.",
+    "active_provider": "anthropic",
+    "timeout_fallback": {
+      "enabled": true,
+      "_note": "Timeout-ONLY escalation, GATED to non-streaming providers (deepseek). No effort/max_tokens rungs: DeepSeek has no effort knob and its 384K output must never be throttled. Anthropic uses streaming instead (see stream_providers) and is deliberately NOT listed here, so this ladder is dormant while Anthropic streams. Effective per-attempt timeouts 600/1200/1800/1800s.",
+      "providers": [
+        "deepseek"
+      ],
+      "ladder": [
+        {},
+        {
+          "timeout_add_seconds": 600
+        },
+        {
+          "timeout_add_seconds": 1200
+        },
+        {
+          "timeout_add_seconds": 1200
+        }
+      ]
+    },
+    "stream_providers": [
+      "anthropic"
+    ],
+    "max_retries": 5,
+    "request_timeout_seconds": 600,
+    "_note_source_budget": "Maximum combined character count for raw source files passed to the LLM per extraction call. Derived from 875K tokens * 4 chars/token (safe headroom within deepseek-v4-pro 1M context window). When exceeded, dependency files are noise-stripped (Tier 2) or replaced with [OMITTED] stubs (Tier 3). Primary entrypoint files are never subject to this limit.",
+    "source_budget_chars": 3500000,
+    "_llm_usage_comments": {
+      "gemini_3.5_flash": {
+        "model_string": "gemini/gemini-3.5-flash",
+        "max_tokens_parameter": "max_completion_tokens (extended-thinking path uses the completion-token ceiling)",
+        "reasoning_level": "Thinking controlled via 'thinking_level' (minimal|low|medium|high; default high). 'thinking_budget' is legacy/back-compat only. RIP passes litellm's unified 'reasoning_effort'=high (mapped to thinking_level=high). Do NOT set a non-default temperature on the reasoning path."
+      },
+      "claude_sonnet_5": {
+        "model_string": "anthropic/claude-sonnet-5",
+        "max_tokens_parameter": "max_completion_tokens (Required for adaptive/extended thinking)",
+        "reasoning_level": "Uses adaptive thinking via the 'effort' parameter (low|medium|high|max; default high). IMPORTANT: manual 'thinking' blocks and non-default sampling params (temperature/top_p) now return HTTP 400 — RIP must NOT send them on the reasoning path. RIP passes litellm's unified 'reasoning_effort'=high (mapped to effort=high). Native Anthropic caps at 200K input tokens; larger inputs require Gemini."
+      },
+      "deepseek_v4_pro": {
+        "model_string": "deepseek/deepseek-v4-pro",
+        "max_tokens_parameter": "max_completion_tokens (up to 384K output tokens)",
+        "context_window": "1M tokens (approx. 4M chars) — largest context among supported providers",
+        "reasoning_level": "Supports both non-thinking and thinking (default) modes. Thinking mode is the default; temperature is ignored by the provider in thinking mode. Use reasoning_keywords=[deepseek-v4-pro] to auto-route to max_completion_tokens path."
+      }
+    },
+    "providers": {
+      "openai": {
+        "_env_key": "OPENAI_API_KEY",
+        "model": "gpt-5-mini",
+        "reasoning_model": "gpt-5",
+        "reasoning_keywords": [
+          "o1",
+          "o3",
+          "gpt-5"
+        ],
+        "temperature": 0.1,
+        "max_tokens": 128000,
+        "max_completion_tokens": 128000,
+        "large_context_model": "gpt-5",
+        "large_context_max_tokens": 128000,
+        "large_context_input_threshold": 200000,
+        "stage5_focal_only_threshold": 8
+      },
+      "gemini": {
+        "_env_key": "GEMINI_API_KEY",
+        "model": "gemini/gemini-3.5-flash",
+        "reasoning_model": "gemini/gemini-3.5-flash",
+        "reasoning_keywords": [],
+        "temperature": 0.1,
+        "max_tokens": 65536,
+        "max_completion_tokens": 65536,
+        "large_context_model": "gemini/gemini-3.5-flash",
+        "large_context_max_tokens": 65536,
+        "large_context_input_threshold": 3500000,
+        "_notes": "Gemini 3.5 Flash MAX config: 1M-token input context, 65,536 max output tokens (the model ceiling). model==reasoning_model so every call runs Flash 3.5 in thinking mode (classified reasoning by exact-match, so no temperature is sent). reasoning_effort='high' is the DEEPEST thinking level Gemini offers (scale minimal|low|medium|high — there is NO 'max' level, unlike Anthropic/DeepSeek). large_context_input_threshold mirrors DeepSeek's ~1M-token headroom (~3.5M chars). event/batch_inline_max match the pipeline default (20/50); lower batch_inline_max if 65K-output batches truncate.",
+        "_reasoning_params": {
+          "reasoning_effort": "high"
+        },
+        "event_inline_max": 20,
+        "batch_inline_max": 50,
+        "stage5_focal_only_threshold": 20
+      },
+      "anthropic": {
+        "_env_key": "ANTHROPIC_API_KEY",
+        "model": "anthropic/claude-sonnet-5",
+        "reasoning_model": "anthropic/claude-sonnet-5",
+        "reasoning_keywords": [],
+        "temperature": 0.1,
+        "max_tokens": 128000,
+        "max_completion_tokens": 128000,
+        "large_context_model": "anthropic/claude-sonnet-5",
+        "large_context_max_tokens": 128000,
+        "large_context_input_threshold": 3000000,
+        "_notes": "Claude Sonnet 5: 1M-token context window — this is the DEFAULT (NO beta header) and is billed at standard long-context pricing (per platform.claude.com/docs context-windows). 128,000 max output tokens. reasoning_effort='high' (adaptive-thinking scale low|medium|high|max; we use 'high', not 'max'). model==reasoning_model so every call is classified reasoning (exact-match) and NO temperature/top_p is sent — mandatory (Sonnet 5 returns HTTP 400 on non-default sampling params or manual 'thinking' blocks). TOKENIZER: Sonnet 5's tokenizer runs ~30% denser (~3 chars/token), so the 1M window holds ~3M chars. The top-level source_budget_chars (3.5M) is ~1.17M tokens at that ratio — marginally over 1M; for the very largest single payloads keep under ~3M chars, else the API stops with model_context_window_exceeded.",
+        "_reasoning_params": {
+          "reasoning_effort": "medium"
+        },
+        "event_inline_max": 20,
+        "batch_inline_max": 50,
+        "stage5_focal_only_threshold": 20,
+        "request_timeout_seconds": 3600
+      },
+      "deepseek": {
+        "_env_key": "DEEPSEEK_API_KEY",
+        "_supports_response_format_note": "DeepSeek disabled the response_format request param API-side ('This response_format type is unavailable now'). Suppressed here; JSON reliability comes from prompt instructions + json_repair. Flip to true if/when DeepSeek restores support.",
+        "supports_response_format": false,
+        "model": "deepseek/deepseek-v4-flash",
+        "reasoning_model": "deepseek/deepseek-v4-pro",
+        "reasoning_keywords": [
+          "deepseek-v4-pro",
+          "deepseek-reasoner"
+        ],
+        "temperature": 0.1,
+        "max_tokens": 384000,
+        "max_completion_tokens": 384000,
+        "large_context_model": "deepseek/deepseek-v4-pro",
+        "large_context_max_tokens": 384000,
+        "large_context_input_threshold": 3500000,
+        "_notes": "deepseek-v4-flash = standard/fast model (no reasoning). deepseek-v4-pro = reasoning/thinking model (1M context, 384K output). All pipeline calls default to the reasoning model (deepseek-v4-pro); use use_reasoning_model=False only where thinking overhead is undesirable.",
+        "_reasoning_params": {
+          "reasoning_effort": "max"
+        },
+        "stage5_focal_only_threshold": 20,
+        "event_inline_max": 20,
+        "batch_inline_max": 50,
+        "request_timeout_seconds": 600
+      }
+    },
+    "timeout_max_retries": 3
+  },
+  "stage2_5": {
+    "_note": "Stage 2.5 module discovery. clustering_strategy: 'auto' = AI-primary semantic clustering with deterministic fallback (folder if unique_folders>=3, else lexical BFS); 'folder' = force one-module-per-folder and SKIP all Stage-2.5 LLM calls (budget + clustering); 'bfs' = force lexical leading-token grouping; 'ai' = force AI-primary (same as auto).",
+    "clustering_strategy": "auto"
+  },
+  "stage5": {
+    "_note": "Stage 5 model is provider-agnostic: with 'model' null, Stage 5 uses LLMClient(use_reasoning_model=True), i.e. the active provider's reasoning model (deepseek-v4-pro / claude-sonnet-5 / gemini-3.5-flash). Set an explicit string here ONLY to pin Stage 5 to a specific model regardless of active_provider. focal_only_threshold: when SRS file count exceeds this, Stage 5a uses semi-deterministic extraction (Python linker + minimal LLM enrichment). Per-provider overrides via llm.providers.{name}.stage5_focal_only_threshold.",
+    "model": null,
+    "focal_only_threshold": 8,
+    "_ui_bearing_srs_types_note": "SRS document types that indicate a user-facing surface. MFUs whose focal SRS file resolves to one of these types are treated as functional (not infrastructure) by P2-guard and P10-guard. Add new types here when onboarding additional legacy stacks — e.g. JSPBlueprint, ASPXBlueprint, CobolScreenBlueprint. No code changes required.",
+    "ui_bearing_srs_types": [
+      "UIBlueprint",
+      "BatchBlueprint"
+    ],
+    "_functional_api_types_note": "SRS document types for headless-but-functional modules (API services, business logic services with no UI screen). MFUs whose focal SRS resolves to one of these types are treated as functional (not infrastructure) by P10-guard. Distinct from ui_bearing_srs_types: use functional_api_types for modules that generate API-only stories (no React/UI tickets). Add new types (COBOLService, RPGServiceProgram) when onboarding additional stacks.",
+    "functional_api_types": [
+      "APIContracts"
+    ],
+    "_skip_module_ids_note": "Module IDs to skip entirely during Stage 5. Shared/common modules contain only utility code with no independent business features. Supports exact IDs and fnmatch wildcards (e.g. 'MOD-SHARED*'). No downstream impact: Neo4j exporter handles missing features_stories.json gracefully.",
+    "skip_module_ids": [
+      "MOD-SHARED",
+      "MOD-COMMON",
+      "MOD-CORE"
+    ]
+  }
+}

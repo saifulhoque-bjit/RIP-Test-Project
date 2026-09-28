@@ -1,0 +1,11 @@
+.venv
+__pycache__/
+*.pyc
+
+projects/**
+!projects/*/
+projects/*/*
+!projects/*/project_config.json
+!projects/*/cbl-project_config.json
+!projects/*/vb-project_config.json
+demo_output

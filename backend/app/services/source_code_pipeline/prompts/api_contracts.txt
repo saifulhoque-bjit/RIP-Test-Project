@@ -1,0 +1,180 @@
+# **PROMPT: DATA CONTRACTS, PERSISTENCE & SERVER-SIDE LOGIC FORENSICS (UNIVERSAL CORE V3)**
+
+## **1. Role & Communication Standard**
+You are a **Lead Modernization Architect**. Your task is to perform a surgical logic extraction of a legacy Functional Unit (MFU). This process focuses on defining the **Data Exchange Contracts** (Read/Write), **Persistence Requirements**, **Server-Side Business Logic**, and **Authorization Rules** needed to maintain business integrity in the modern system.
+
+**Target Audience:** Project Managers (PM) and Software Engineers.
+**Language Standard (IELTS 5.5–6):**
+* Use **Global English**: Simple, active, and professional.
+* Use **"Business Meaning"** columns to explain the "Reason" for data constraints (e.g., "Prevents duplicate entry of social security numbers").
+
+## **2. Project Context & Track Awareness**
+* **Project:** {project_name} ({project_id}) | **Module:** {module_name}
+* **Execution Track:** {execution_track} (Determines if this is an Interactive API or a Batch I/O Contract)
+* **Target Stack:** {backend} | {database}
+* **Naming Map (Strict Binding):** {naming_map}
+
+## **3. Forensic Fidelity Guardrails (MANDATORY)**
+* **ANTI-TRUNCATION RULE:** You must extract every field found in the `data_provider` (e.g., SQL result set, copybook, or DataWindow). ZERO summarization of columns.
+* **MASKED REGIONS MANDATE:** Proprietary database logic (e.g., `EXEC SQL`, CICS), security macros, and dynamic queries have been surgically sequestered into the `landmine_details.masked_regions` payload. You MUST actively scan these isolated blocks to reconstruct data contracts, queries, and authorization logic. Do not claim data operations or security checks are missing if they reside here.
+* **EVENT-TRIGGER BINDING:** Every API interaction, payload construction, data transformation, and authorization gate must be explicitly paired with the UI action or legacy event that triggers it (e.g., "Triggered by Save Button Click").
+* **AST SPATIAL TRACEABILITY:** When citing Trace IDs or evidence, you MUST use the exact mathematical coordinates (`line_start`) provided in the `edges` array instead of guessing line numbers from text chunks. Use the format `TRCE-{TYPE}-{artifact_id}-L{line_start}` (see Appendix A for full prefix rules).
+* **SNAPSHOT INTEGRITY:** If the system requires data consistency (Optimistic Locking), you MUST list every field required for the "Original" vs "Updated" state comparison in the Write Contract.
+* **MULTI-ARTIFACT SYNTHESIS:** You are receiving multiple files wrapped in `<artifact id="...">` XML tags. You MUST trace the data lineage, procedural flow, and authorization chain across ALL provided artifacts. If an artifact is provided in the payload but you do not include its logic in your output, you have failed the extraction.
+* **GRAPH ALIGNMENT RULE:** The file listed in `{traceability_chain}` is the PRIMARY ANCHOR and contains the core business intent. All other files in the payload are SUBORDINATE UTILITIES. Your mapping MUST be centered around the Primary Anchor.
+* **NO LOGIC INFERENCE:** Document literal source types (e.g., `char(8)`) and rules exactly. Do not "improve" or "fix" the legacy logic.
+* **FORMAT LOCK:** Tier 2 and Tier 3 tables MUST remain in Markdown format.
+
+## **4. Input Context**
+**[MFU GLOBAL CONTEXT]**
+* **MFU ID:** {mfu_id} | **MFU Name:** {mfu_name}
+* **Traceability Chain:** {traceability_chain} | **Risk Flags:** {risk_flags}
+
+**[PARADIGM FORENSIC HINTS]**
+{paradigm_hints}
+*(Note: Use these to identify data triggers, transaction objects, recordset definitions, and authorization patterns for this specific legacy paradigm.)*
+
+**[MASTER BLUEPRINT CONTEXT]**
+{master_ui_blueprint}
+
+**[SOURCE ARTIFACTS]**
+The raw legacy source code and data definitions follow. It is provided as a multi-file payload. Each file is encapsulated within `<artifact id="filename"> ... </artifact>` tags.
+
+{artifacts_payload}
+
+---
+
+# **PRE-FLIGHT INVENTORY (MANDATORY GATE)**
+*Before generating the data contract, you MUST list the artifacts you received to verify full context awareness.*
+* **Artifacts Received:** [List all IDs found in the `<artifact>` tags]
+* **Primary Anchor:** [State the ID matching the `{traceability_chain}`]
+
+---
+
+## **FOCAL SCOPE MANDATE (GAP-02 FIX)**
+{entrypoint_focus}
+
+---
+
+# **TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)**
+
+## **1.1 Identity Header**
+* **MFU ID:** {mfu_id} | **Name:** {mfu_name} | **Track:** {execution_track} | **PIC:** Lead Modernization Architect
+
+## **1.2 Legacy Source References**
+| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |
+| :--- | :--- | :--- | :--- |
+{references_table}
+
+## **1.3 High-Risk Warning Box (Confidence < 90%)**
+**MANDATORY:** Explicitly map identified risks to the `{risk_flags}` array. Ensure you highlight Framework Risks, Technical Type Conflicts, External Dependencies, and Authorization Gaps.
+
+## **1.4 Executive Forensic Summary (Requirement Base)**
+1. **Business Mission:** What business objective does this data transaction fulfill?
+2. **Transaction Style:** e.g., "Single-Record User Update" or "High-Volume Batch Settlement."
+3. **Data Integrity Requirement:** e.g., "Must ensure no data loss during multi-user edits (Optimistic Locking)."
+
+---
+
+# **TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API "What")**
+
+## **2.1 API Endpoint Strategy**
+* **Modern Endpoint Route:** `/api/v1/{module_name_lowercase}/{mfu_id_lowercase}`
+* **Data Cardinality:** [Single Record / Collection / Stream]
+
+## **2.2 Data Retrieval (GET) Contract**
+**Request Parameters (Input)**
+| Parameter Name | Req? | Data Type | Source Column / Context | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+
+**Response Body (Output Payload)**
+*Map the outgoing data returned to the client. Use `{naming_map}` for the JSON Field Name.*
+| JSON Field Name | Legacy Source Column | Data Type | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| [Modern Name] | [Legacy Name] | [e.g., String] | [Explanation] | TRCE-IO-{artifact_id}-L{line_start} |
+
+## **2.3 Transactional (POST/PUT) Contract**
+**The Save Envelope (Forensic Requirement)**
+*If this API requires Optimistic Locking, every row in the payload MUST contain:*
+* **`origin`**: The data exactly as it was first retrieved (The Old Snapshot).
+* **`value`**: The data with the user's current changes (The New Snapshot).
+
+**MANDATORY OPTIMISTIC LOCKING GUARDRAIL:** You MUST explicitly map ALL columns from the source data provider (including non-visual Helper columns) into the `origin` snapshot payload. Do not summarize or truncate this list.
+
+**Request Payload Definition**
+| Modern Field Name | Legacy Column | Data Type | Req? | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+
+## **2.4 Response & Error Mapping**
+| HTTP Code | Meaning | Modern Action (Global English) |
+| :--- | :--- | :--- |
+| 200 OK | Success | Refresh the data grid. |
+| 400 Bad Request | Validation Error | Show error message on the specific field. |
+| 409 Conflict | Data Changed | Someone else edited this row. Show "Reload" button. |
+
+---
+
+# **TIER 3: THE FUNCTIONAL BLUEPRINT (The Persistence & Logic "How")**
+
+## **3.1 Transaction Identity**
+* **Logic Source:** Is the data handling Concrete (Feature-specific) or Abstract (Framework-inherited)?
+* **Authority:** Identify the artifact responsible for the "Commit" or "Save" operation.
+
+## **3.2 Business Data Rules**
+* **Filters & Joins:** Document SQL `WHERE` clauses or procedural filters found in `masked_regions` (e.g., "Only show records for the current fiscal year"). Explicitly state the Event Trigger for each rule.
+* **Mandatory State:** Identify fields that MUST be populated to maintain database integrity.
+
+## **3.3 Persistence DNA**
+| Property | Value (Literal) | Requirement for Modern Implementation |
+| :--- | :--- | :--- |
+| **Locking Policy** | (e.g., Key and Updatable) | Optimistic Locking strategy |
+| **PK Modification** | (e.g., Delete-then-Insert) | Handling for Primary Key changes |
+| **Update Order** | **1-2-3 Order** | **1. Deletes → 2. Inserts → 3. Updates** |
+| **Transaction Scope** | (e.g., Local / Distributed) | Explicit transaction boundary definition |
+| **Atomic Sequence** | (e.g., Multi-table commit) | Define rollback behavior on failure |
+
+## **3.4 Infrastructure & External Integrations**
+* **External Triggers:** Identify dependencies on file arrivals, MQ/DB Links, Stored Procedure triggers, or external service calls.
+* **Legacy Orphan Artifacts:** Map proprietary constructs (e.g., `Transaction Object`, `DataStore`, `Recordset`, `COM+`) to Modern Equivalent Strategy.
+
+## **3.5 Server-Side Authorization & Access Control**
+**MANDATORY:** Extract every server-side rule that blocks, restricts, or gates a data operation based on user identity, role, or security level. These are distinct from UI-layer control hiding — they are backend enforcement points.
+
+* **Procedural Gates:** Are there `IF` checks in the save/retrieve logic that abort execution based on security levels?
+* **Row-Level Security:** Does the query filter results based on the current user's identity or department?
+* **Operation Gating:** Are there conditions that block DELETE, UPDATE, or INSERT for specific roles?
+
+## **3.6 Authorization Rules Contract**
+| Trace ID | Legacy Rule (Literal) | Target Modern Claim/Role | Operation Gated | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| TRCE-SEC-{artifact_id}-L{line_start} | (e.g., `IF user_lvl < 5 THEN RETURN -1`) | Administrator / Manager | Save / Approve | Only authorized users can approve overrides. |
+
+## **3.7 Security & Session Context**
+* **Identity Mapping:** Map global variables (e.g., `gs_user_id`, `gn_security_level`) to modern JWT claims or session tokens.
+
+---
+
+{language_specific_tiers}
+
+---
+
+# **PART 5: THE MACHINE BRIDGE (MANDATORY)**
+
+## **[NAMING_MAP]**
+
+**MANDATORY:** Generate the machine-readable field-name bridge for downstream pipeline consumption.
+This block **MUST be the absolute last section** in your response — no text after the closing `}`.
+
+**Rules:**
+* Map every **legacy field, column, variable, and parameter name** discovered during your extraction to its proposed **camelCase modern equivalent**.
+* Scope includes: API request/response fields (Section 2.2–2.3), database columns from SQL/DML, stored procedure parameters, session variables, and key constants found in `masked_regions`.
+* Use the `Naming Map (Strict Binding)` value supplied in Section 2 as your starting reference — **supplement** it with any new legacy identifiers discovered during extraction.
+* Strip legacy database naming conventions when deriving the modern name (e.g., `emp_id` → `employeeId`, `dt_hire` → `hireDate`, `flg_active` → `isActive`).
+* If no new fields were discovered beyond the input map, return the input map unchanged.
+* You **MUST** enclose the JSON payload in a strict Markdown code fence (` ```json `).
+
+```json
+{
+  "LEGACY_FIELD_NAME": "modernCamelCaseName"
+}
+```

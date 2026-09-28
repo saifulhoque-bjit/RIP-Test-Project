@@ -1,0 +1,309 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ project_name }} — Product Requirements Document</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2.2cm 1.6cm 2cm 1.6cm;
+    @bottom-left {
+      content: "{{ project_name }}";
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      font-size: 8.5pt;
+      color: #8A94A6;
+    }
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      font-size: 8.5pt;
+      color: #8A94A6;
+    }
+  }
+  @page cover {
+    margin: 0;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    color: #0E1726;
+    font-size: 10pt;
+    line-height: 1.45;
+  }
+
+  /* ── Cover page ─────────────────────────────────────────────────────── */
+  .cover {
+    page: cover;
+    break-after: page;
+    width: 100%;
+    height: 29.7cm;
+    color: #0E1726;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2cm;
+  }
+  .cover h1 {
+    font-size: 28pt;
+    font-weight: 700;
+    color: #0A1F44;
+    margin: 0 0 0.4cm 0;
+  }
+  .cover .subtitle {
+    font-size: 13pt;
+    color: #1342A6;
+    margin-bottom: 0.9cm;
+  }
+  .cover .meta {
+    font-size: 9.5pt;
+    color: #475467;
+    margin-bottom: 2.2cm;
+  }
+  .cover .summary {
+    font-size: 11pt;
+    color: #0E1726;
+    margin-bottom: 3cm;
+  }
+  .cover .project-id {
+    font-size: 8.5pt;
+    color: #8A94A6;
+  }
+
+  /* ── Table of contents ─────────────────────────────────────────────── */
+  .toc {
+    break-after: page;
+    text-align: left;
+  }
+  .toc-title {
+    font-size: 16pt;
+    font-weight: 700;
+    color: #0A1F44;
+    margin: 0 0 0.6cm 0;
+    padding-bottom: 0.2cm;
+    border-bottom: 1.5pt solid #0A1F44;
+    text-align: left;
+  }
+  .toc-row {
+    margin: 0.14cm 0;
+    text-align: left;
+  }
+  .toc-link {
+    display: flex;
+    align-items: baseline;
+    text-decoration: none;
+    color: inherit;
+    text-align: left;
+  }
+  .toc-link::after {
+    content: target-counter(attr(href), page);
+    color: #8A94A6;
+    font-size: 9pt;
+    padding-left: 0.15cm;
+  }
+  .toc-dots {
+    flex: 1;
+    margin: 0 0.1cm;
+  }
+  .toc-dots::after {
+    content: leader(".");
+    color: #C7CDD9;
+  }
+  .toc-module .toc-link {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #0A1F44;
+  }
+  .toc-feature {
+    margin-left: 0.6cm;
+  }
+  .toc-feature .toc-link {
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #1342A6;
+  }
+  .toc-story {
+    margin-left: 1.2cm;
+  }
+  .toc-story .toc-link {
+    font-size: 8.5pt;
+    font-weight: 400;
+    color: #475467;
+  }
+
+  /* ── Module / feature headers ───────────────────────────────────────── */
+  .module {
+    break-before: page;
+  }
+  .module:first-of-type {
+    break-before: avoid;
+  }
+  .module-header {
+    color: #C2410C;
+    margin: 0;
+    padding: 0.15cm 0;
+    font-size: 13pt;
+    font-weight: 700;
+  }
+  .module-description {
+    color: #475467;
+    font-size: 9.5pt;
+    margin: 0.3cm 0 0.6cm 0;
+  }
+  .feature-header {
+    color: #1342A6;
+    margin: 0.5cm 0 0 0;
+    padding: 0.1cm 0;
+    font-size: 12pt;
+    font-weight: 700;
+  }
+  .business-value {
+    margin: 0.3cm 0 0.4cm 0;
+    font-size: 9.5pt;
+  }
+  .business-value b {
+    text-transform: uppercase;
+    font-size: 8pt;
+    letter-spacing: 0.3pt;
+  }
+  .business-value p {
+    margin: 0.1cm 0 0 0;
+    color: #475467;
+  }
+
+  /* ── Story block ────────────────────────────────────────────────────── */
+  .story-card {
+    margin: 0.5cm 0;
+    break-inside: avoid;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 8pt;
+    font-weight: 700;
+  }
+  .badge-code {
+    color: #1342A6;
+  }
+  .story-title {
+    color: #000000;
+    font-size: 10.5pt;
+    font-weight: 700;
+    margin: 0.15cm 0 0.2cm 0;
+  }
+  .story-fields p {
+    margin: 0.08cm 0;
+    font-size: 9.5pt;
+  }
+  .story-fields b {
+    color: #475467;
+  }
+  .section-label {
+    font-size: 8.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3pt;
+    color: #475467;
+    margin: 0.3cm 0 0.15cm 0;
+  }
+  ul.bullet-list {
+    margin: 0;
+    padding-left: 0.5cm;
+    font-size: 9pt;
+  }
+  ul.bullet-list li {
+    margin: 0.08cm 0;
+  }
+</style>
+</head>
+<body>
+
+  <div class="cover">
+    <h1>{{ project_name }}</h1>
+    <div class="subtitle">Product Requirements Document</div>
+    <div class="meta">
+      Date: {{ exported_at }}{% if exported_by %} · Prepared by: {{ exported_by }}{% endif %}
+    </div>
+    <div class="summary">{{ modules|length }} Modules · {{ feature_count }} Features · {{ story_count }} Stories</div>
+    <div class="project-id">Project ID: {{ project_id }}</div>
+  </div>
+
+  <div class="toc">
+    <div class="toc-title">Table of Contents</div>
+    {% for module in modules %}
+    {% set module_index = loop.index %}
+    <div class="toc-row toc-module">
+      <a class="toc-link" href="#mod-{{ module_index }}">
+        <span class="toc-label">{{ module.mod_code }}: {{ module.name }}</span>
+        <span class="toc-dots"></span>
+      </a>
+    </div>
+    {% for feature in module.features %}
+    {% set feature_index = loop.index %}
+    <div class="toc-row toc-feature">
+      <a class="toc-link" href="#fea-{{ module_index }}-{{ feature_index }}">
+        <span class="toc-label">{{ feature.fea_code }}: {{ feature.name }}</span>
+        <span class="toc-dots"></span>
+      </a>
+    </div>
+    {% for story in feature.stories %}
+    <div class="toc-row toc-story">
+      <a class="toc-link" href="#story-{{ module_index }}-{{ feature_index }}-{{ loop.index }}">
+        <span class="toc-label">{{ story.user_story_code }}: {{ story.title }}</span>
+        <span class="toc-dots"></span>
+      </a>
+    </div>
+    {% endfor %}
+    {% endfor %}
+    {% endfor %}
+  </div>
+
+  {% for module in modules %}
+  {% set module_index = loop.index %}
+  <div class="module" id="mod-{{ module_index }}">
+    <h1 class="module-header">{{ module.mod_code }}: {{ module.name }}</h1>
+    {% if module.description %}
+    <div class="module-description">{{ module.description }}</div>
+    {% endif %}
+
+    {% for feature in module.features %}
+    {% set feature_index = loop.index %}
+    <h2 class="feature-header" id="fea-{{ module_index }}-{{ feature_index }}">{{ feature.fea_code }}: {{ feature.name }}</h2>
+    {% if feature.description %}
+    <div class="business-value">
+      <b>Business Value</b>
+      <p>{{ feature.description }}</p>
+    </div>
+    {% endif %}
+
+    {% for story in feature.stories %}
+    <div class="story-card" id="story-{{ module_index }}-{{ feature_index }}-{{ loop.index }}">
+      <h3 class="story-title">{{ story.user_story_code }} : {{ story.title }}</h3>
+      <div class="story-fields">
+        <p>As a {{ story.as_a }}, I want to {{ story.i_want_to }} so that {{ story.so_that }}.</p>
+      </div>
+      {% if story.acceptance_criteria %}
+      <div class="section-label">Acceptance Criteria</div>
+      <ul class="bullet-list">
+        {% for ac in story.acceptance_criteria %}
+        <li>{% if ac.type %}<span class="badge">[{{ ac.type }}]</span> {% endif %}Given {{ ac.given }}, when {{ ac.when }}, then {{ ac.then }}.</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if story.nfrs %}
+      <div class="section-label">Non-Functional Requirements</div>
+      <ul class="bullet-list">
+        {% for nfr in story.nfrs %}
+        <li>[{{ nfr.category }}] {{ nfr.requirement }}{% if nfr.description %} — {{ nfr.description }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+</body>
+</html>

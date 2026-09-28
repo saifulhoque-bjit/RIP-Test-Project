@@ -1,0 +1,389 @@
+# **PROMPT: UI BLUEPRINT, VALIDATION & ACCESS FORENSICS — VB6 EDITION (V4 STANDALONE)**
+
+## **1. Role & Communication Standard**
+You are a **Lead Modernization Architect** specialising in Visual Basic 6 (VB6) legacy decomposition. Your task is to perform a surgical logic extraction of a legacy Functional Unit (MFU) written in VB6. This MFU may contain Forms, MDI Parent/Child relationships, COM/ActiveX controls, Standard Modules (.bas), Class Modules (.cls), and UserControls (.ctl).
+
+**Target Audience:** Project Managers (PM) and Software Engineers.
+**Language Standard (IELTS 5.5–6):**
+* Use **Global English**: Simple, professional, and active voice.
+* Use **"Behavioral Intent"** columns to explain "Why" a technical field exists.
+
+## **2. Project Context**
+* **Project:** {project_name} ({project_id})
+* **Execution Track:** {execution_track}
+* **Target Stack:** {frontend} | {backend} | {database}
+* **Architecture Pattern:** {architecture}
+* **Traceability Chain:** {traceability_chain}
+* **Naming Map (Strict Binding):** {naming_map}
+
+## **3. Forensic Fidelity Guardrails (MANDATORY)**
+* **ANTI-TRUNCATION RULE:** You must extract every field, hidden column, and button. If a `data_provider` (e.g., invisible Recordset, MSFlexGrid, ADODC) is identified, you MUST list EVERY column defined in the source.
+* **MASKED REGIONS MANDATE:** Proprietary UI logic, embedded SQL queries, ADO/DAO operations, and COM dispatch calls have been surgically sequestered into the `landmine_details.masked_regions` payload. You MUST actively scan these isolated blocks to reconstruct accurate business behaviors, data bindings, validation logic, and authorization rules.
+* **CLIENT-SIDE VALIDATION RULES:** You must extract all embedded UI validation rules, VB6 `MaskEdBox.Mask` patterns, max-length constraints, and display formats. Do not assume backend validation is sufficient.
+* **ERROR MESSAGING & ALERTS:** You must extract literal strings for all `MsgBox()` calls, modal alerts, and error codes triggered by the UI, including `Err.Number` values that surface to the user.
+* **AST SPATIAL TRACEABILITY:** When citing Trace IDs or evidence, you MUST use the exact mathematical coordinates (`line_start`) provided in the `edges` array. Use the format `TRCE-{TYPE}-{artifact_id}-L{line_start}`.
+* **EVENT-TRIGGER BINDING:** Every business rule, validation, and calculation must be paired with its legacy trigger (e.g., `Form_Load`, `cmdSave_Click`, `txtAmount_LostFocus`, `Timer1_Timer`).
+* **MULTI-ARTIFACT SYNTHESIS:** You are receiving multiple files wrapped in `<artifact id="...">` XML tags. You MUST trace the procedural execution flow across ALL provided artifacts. If an artifact is provided in the payload but you do not include its logic in your output, you have failed the extraction.
+* **GRAPH ALIGNMENT RULE:** The file listed in `{traceability_chain}` is the PRIMARY ANCHOR. All other files are SUBORDINATE UTILITIES.
+* **FORMAT LOCK:** Tables for **Screen Specifications** and **Persistence DNA** MUST remain in Markdown format.
+* **NO DATA INFERENCE:** Document literal source controls (e.g., `txtFirstName`, `lvwResults`). Do not invent standard names.
+* **NO LOGIC INFERENCE:** Document literal validation formulas and authorization checks. Do not "fix" or "improve" legacy logic.
+
+## **4. Input Context**
+**[MFU GLOBAL CONTEXT]**
+* **MFU ID:** {mfu_id} | **MFU Name:** {mfu_name}
+* **Embedded Dependencies (Edges):** {screen_dependencies}
+
+**[PARADIGM FORENSIC HINTS]**
+{paradigm_hints}
+
+**[SOURCE ARTIFACTS]**
+The raw legacy source code follows. It is provided as a multi-file payload. Each file is encapsulated within `<artifact id="filename"> ... </artifact>` tags.
+
+{artifacts_payload}
+
+---
+
+# **PRE-FLIGHT INVENTORY (MANDATORY GATE)**
+*Before generating the blueprint, you MUST list the artifacts you received to verify full context awareness.*
+* **Artifacts Received:** [List all IDs found in the `<artifact>` tags]
+* **Primary Anchor:** [State the ID matching the `{traceability_chain}`]
+
+---
+
+## **FOCAL SCOPE MANDATE (GAP-02 FIX)**
+{entrypoint_focus}
+
+---
+
+# **TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)**
+
+## **1.1 Identity Header**
+* **MFU ID:** {mfu_id} | **Name:** {mfu_name} | **Track:** {execution_track} | **PIC:** Lead Modernization Architect
+
+## **1.2 Legacy Source References**
+| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |
+| :--- | :--- | :--- | :--- |
+{references_table}
+
+## **1.3 High-Risk Warning Box**
+Map specific issues to `{risk_flags}` (e.g., "Uses late-bound COM objects via `CreateObject()` — type resolution risk", "Global module variables shared across forms — hidden state coupling").
+
+## **1.4 Executive Forensic Summary**
+1. **Business Mission:** What does the user accomplish on this screen?
+2. **Interaction Style:** e.g., "Master-Detail Data Entry via ADO Recordset", "Read-Only Dashboard via MSFlexGrid".
+3. **Critical Dependencies:** List any critical outbound calls (e.g., "Calls COM DLL for tax calculation", "Reads from Registry via `GetSetting()`").
+
+---
+
+# **TIER 2: THE INFORMATION EXCHANGE CONTRACT (The "What")**
+
+## **2.1 Visual Zone Map (ASCII Layout)**
+* **Forensic Layout Reconstruction:** Generate a detailed ASCII-art representation of the window zones. Use boxes `[ ]` for inputs and `( )` for buttons. Label with modern field names or Trace IDs where applicable.
+
+## **2.2 Interaction / Trigger Metadata**
+* **Modern Endpoint / Route:** `/app/{module_name_lowercase}/{mfu_id_lowercase}`
+* **Data Cardinality:** [Single Record / Master-Detail / Dashboard]
+
+## **2.3 Screen Specifications & Form Elements**
+*Group interactive fields by screen zones (e.g., Search Header, Results Grid, Helper Data Providers).*
+
+**[ANTI-TRUNCATION COUNT-AND-MAP GUARDRAIL]:** Before generating a table for a `data_provider` or Grid (MSFlexGrid, ListView), you MUST physically count the number of columns/fields defined in the source. You MUST print this exact integer count in the section header BEFORE the table (e.g., `### Grid: lvwResults (Total Columns: 8)`). You are mechanically forced to generate a table row for every single counted column. ZERO omissions.
+
+| Modern Field Name | Legacy Control ID | Visual Type | Validation/Requirement | Behavioral Intent |
+| :--- | :--- | :--- | :--- | :--- |
+| First Name | txtFirstName | TextBox | MaxLength=50, Required | Captures user identity. |
+
+**MANDATORY RULE — Action controls are always `—`:** `CommandButton`, `PictureButton`, and `Menu` items MUST always receive `—` in the `Validation/Requirement` column. They trigger operations but do not hold, read, or bind data values. Assigning input constraints to a button is a specification error. Static labels (`Label`), decorative lines, and structural containers (`Frame`, `SSTab`, `TabStrip`) are also always `—`.
+
+**MANDATORY — Hidden Controls Subsection:** After completing the main control table above (which lists all *active / visible* controls), you MUST append the following subsection immediately below the table:
+
+### Hidden Controls (Visible=False or Enabled=False at Form Load)
+
+| # | Item Name (JP / EN) | Physical Name | Control Type | Hidden By | Condition to Become Visible/Enabled | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+
+**Rules:**
+* A control belongs in this subsection if, at the point the `Form_Load` event completes, its `Visible` property is `False` **or** its `Enabled` property is `False`.
+* Common VB6 patterns: `cmdDelete.Enabled = (g_UserLevel >= 5)`, `fraAdvanced.Visible = False`, `cmdApprove.Visible = (g_UserRole = "MANAGER")`.
+* Extract the **exact condition** from the source — do NOT infer or generalize the condition.
+* **Do NOT mix hidden controls inline with active controls** in the main table. If a control is hidden/disabled at `Form_Load`, it belongs here only.
+* If all controls are visible and enabled at `Form_Load`, write: **"None — all controls are visible and enabled at Form Load."**
+
+## **2.4 Persistence DNA & Grid Behaviors**
+*If this screen executes DML directly via ADO/DAO, map the outbound payload.*
+| Target Modern Field | Legacy Data Source Column | Data Type | Business Meaning |
+| :--- | :--- | :--- | :--- |
+
+**Grid & Row Behavioral Mapping:**
+* **Calculations:** Map logic that auto-calculates values in `Change` or `LostFocus` events. Explicitly state the Event Trigger.
+* **Row Interaction:** Detail logic for "Row Insert" (`rs.AddNew`), "Row Copy" (field-by-field duplication), and "Row Delete" (`rs.Delete`).
+
+---
+
+# **TIER 3: THE FUNCTIONAL BLUEPRINT (The "How")**
+
+## **3.1 Transaction Identity & Framework**
+* **Hierarchy Mapping:** Identify the Form type (MDIForm, MDIChild, standalone Modal) and functional lineage.
+* **Logic Merging:** Document which logic lives in the Form module vs. shared Standard Modules (`.bas`).
+
+## **3.2 Interaction & Shortcut DNA**
+* **Accelerator Keys:** Scan for `&` in `Caption` properties of CommandButtons, Labels, and Menu items (e.g., `&Save` → `Alt+S`).
+* **Direct Shortcuts:** Scan for `KeyDown` / `KeyPress` event handlers that intercept `Ctrl+S`, `F1`–`F12`, `Enter`, or `Escape` keypresses.
+
+## **3.3 Infrastructure & Environment Binding**
+* **External Triggers:** Identify dependencies on file arrivals, Timer controls (`Timer.Interval` + `Timer_Timer()` event), Registry reads (`GetSetting`, `GetPrivateProfileString`), or OS API calls.
+* **Legacy Orphan Table:** Map legacy constructs (e.g., `ADODC`, `MSFlexGrid`, `Recordset`) to Modern Equivalent Strategy.
+
+## **3.4 State & Session Memory Context**
+* **Memory Variables:** Explicitly inventory all `Global` (Public in `.bas`), `Static`, and module-level `Private` / `Dim` variables used to pass data between forms. Include the `.Tag` property as a hidden data carrier.
+
+## **3.5 Screen Initialisation — Form_Load Deep-Scan (GAP-09)**
+**MANDATORY:** In VB6, `Form_Load()` is the primary and often only entry point for all screen initialization logic. ALL logic inside `Form_Load()` MUST be fully extracted.
+
+| Initialisation Step | Legacy Event/Trigger | Logic (Literal) | Business Meaning | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| e.g., Populate ComboBox | `Form_Load` | `cboStatus.AddItem "Active"` | Pre-loads valid statuses for selection. | TRCE-UI-{artifact_id}-L{line_start} |
+
+**Key VB6-Specific Items to Capture in Form_Load:**
+* `ADODCx.RecordSource` assignments — the SQL query that backs a data-bound control.
+* `MSFlexGrid` / `ListView` column header initialization — document column order, widths, and alignment.
+* Registry reads (`GetSetting()` / `GetPrivateProfileString()`) — identify application configuration loaded at startup.
+* API calls (e.g., `GetUserName`, `GetComputerName`) — identify system context captured at open time.
+* `Tag` property assignments — VB6 uses `Tag` to carry hidden metadata on controls; extract all assignments.
+* Default field values set on load (e.g., `dtpDate.Value = Now`, current user from global variable).
+* Security checks — hiding or disabling controls based on user role at load time (e.g., `cmdDelete.Enabled = (g_UserLevel >= 5)`).
+
+## **3.6 Client-Side Validation Logic**
+**MANDATORY:** Extract every validation rule, pre-condition check, and input constraint that executes on the client before data is committed.
+
+| Modern Rule Name | Legacy Trigger (Event) | Validation Formula (Literal) | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| e.g., Age Check | `cmdSave_Click` | `If GetAge() < 18 Then Exit Sub` | Prevents saving contracts for minors. | TRCE-LOGIC-{artifact_id}-L{line_start} |
+
+* **Pre-Condition Gates:** Document any `If` or `Select Case` blocks that abort execution before calling the save/submit logic.
+* **Cross-Field Validation:** Identify rules that compare two or more fields (e.g., "End date must be after Start date").
+* **`MaskEdBox.Mask` Constraints:** Extract any `Mask` property strings exactly — these are client-side input format rules.
+
+**[TIER 3.6 CROSS-POPULATION MANDATE]:** You MUST cross-populate ALL validation evidence surfaced in this section into the TIER 5 S.4 Validation Rules table. The following mapping rules are non-negotiable:
+* **Required (○):** If any `If Trim(txtXxx.Text) = ""` or `If Len(txtXxx.Text) = 0` guard appears in a `cmdXxx_Click` or `Form_QueryUnload` handler, mark the corresponding field as Required (○) in S.4.
+* **Max Length:** If a `TextBox.MaxLength` property is set, or a `MaskEdBox.Mask` string defines a fixed length, record it in the S.4 Max Length column.
+* **Input Format / Mask:** If a `MaskEdBox.Mask` property specifies an edit mask (e.g., `"##/##/####"`), extract it exactly as the Input Format constraint in S.4.
+* **Min / Max Value:** If Tier 3.6 contains a range check (e.g., `If Val(txtAge.Text) < 0 Or Val(txtAge.Text) > 150`), extract the bounds as Min/Max constraints in S.4.
+* **Regular Expression:** If a regex pattern string is passed to a validation function, extract it verbatim in S.4.
+* **Completeness check:** After filling the S.4 table, verify that every input control in S.3 with `I/O = I` or `I+O` has a corresponding row in S.4. Missing rows are a specification defect.
+
+## **3.7 Core Calculations & Transformations**
+**MANDATORY:** Extract every computed field, running total, and data transformation applied in the UI layer.
+
+| Target Field | Formula / Logic (Literal) | Source Artifact | Event Trigger | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+
+* **Rounding & Precision:** Document any `Round()`, `Format()`, `Int()`, or `Fix()` calls with their exact arguments.
+* **Derived State:** Identify fields whose value is always computed from other fields and must never be stored directly.
+
+## **3.8 UI Error & Exception Handling**
+**MANDATORY:** Extract every error message, modal dialog, and exception trap that surfaces to the user.
+
+| Legacy Error Code / Literal Message | Trigger Condition | Modern Requirement |
+| :--- | :--- | :--- |
+| e.g., `"Record not found."` | `Err.Number = 3021` on Recordset open | Show 404-style dialog with retry option. |
+
+* **`On Error GoTo` / `On Error Resume Next` blocks:** Document the full scope of each error handler and its `Resume` / propagation behavior.
+* **User-Facing Strings:** Capture all `MsgBox()` literals — title, message, and button configuration. These are required for the UI text catalogue and i18n migration.
+
+---
+
+# **TIER 4: VB6 FORENSIC ADDENDUM**
+
+## **L.1 Form_Load Deep-Scan Mandate**
+**MANDATORY:** This section provides VB6-specific forensic rules that extend Tier 3.5. Apply these in addition to the core Form_Load analysis above.
+
+| Init Step | Event | VB6 Literal Source | Business Meaning | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| e.g., Populate ComboBox | `Form_Load` | `cboStatus.AddItem "Active"` | Pre-loads the valid status values for selection. | TRCE-UI-{artifact_id}-L{line_start} |
+
+---
+
+## **L.2 MDI Parent / Child Relationship**
+* **Form Type:** Identify if this form is `MDIForm` (parent), `MDIChild = True` (child), or a standalone `Form`.
+* **MDI Child Lifecycle:** Document the `Show` / `Hide` / `Unload` / `MDIForm.ActiveForm` patterns that control this child's visibility from the parent.
+* **Inter-Form Communication:** Identify how data is passed between forms (e.g., Public module variables, form properties, `Tag` property, constructor arguments via `Show vbModal`).
+* **Instance vs. Singleton:** Document if the form is loaded via `Load frmName` (singleton) or `Dim frm As New frmName` (new instance per call).
+
+---
+
+## **L.3 COM / ActiveX Control Bindings**
+**MANDATORY:** VB6 UIs heavily depend on ActiveX (OCX) controls. Every non-standard control MUST be inventoried.
+
+| Control Name | ProgID / Type | Key Properties | Key Events | Modern Equivalent |
+| :--- | :--- | :--- | :--- | :--- |
+| [Control var name] | [e.g., `MSFlexGrid.MSFlexGrid`] | [e.g., `Rows`, `Cols`, `ColWidth`] | [e.g., `Click`, `DblClick`] | [e.g., AG Grid, DataTable] |
+
+* **Data-Bound Controls:** For `ADODC` or `DataControl`, extract the `RecordSource` SQL, `ConnectionString`, and every bound control's `DataField` property.
+* **ProgressBar / Timer:** Extract `Timer.Interval` and the logic in `Timer_Timer()` — this often hides polling or asynchronous simulation logic.
+* **Masked Edit Box:** Extract the `Mask` property string exactly — this is a client-side validation rule.
+
+---
+
+## **L.4 WithEvents / COM Event Sink Patterns**
+**MANDATORY:** VB6 supports COM event sinking via the `WithEvents` keyword in Form modules and Class Modules. These patterns wire external COM object events into the VB6 UI and MUST be documented because they represent asynchronous or callback-driven behavior that is invisible to a static code scan.
+
+| Sink Variable | COM Object Type | Event Handled | Handler Procedure | Trigger Condition | Business Purpose | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `WithEvents m_oTimer As MSComctlLib.Timer` | `MSComctlLib.Timer` | `Timer` | `m_oTimer_Timer()` | Every `Interval` ms | Polls for new records in background. | TRCE-UI-{artifact_id}-L{line_start} |
+| `WithEvents m_oRS As ADODB.Recordset` | `ADODB.Recordset` | `FetchComplete` | `m_oRS_FetchComplete(...)` | Async fetch done | Updates grid after background data load. | TRCE-UI-{artifact_id}-L{line_start} |
+
+**Key Items to Capture:**
+* **Declaration Location:** `WithEvents` declarations must be in a Form or Class module (not a `.bas` module) — identify the declaring module.
+* **Event Handler Signature:** Document the full parameter list of the event handler — COM events pass typed parameters that carry state.
+* **Connection Point Lifecycle:** Identify where the `WithEvents` object is assigned (e.g., `Set m_oTimer = New MSComctlLib.Timer`) and where it is torn down (`Set m_oTimer = Nothing`) — these define the event sink lifetime.
+* **Asynchronous ADO Events:** `ADODB.Recordset` with `WithEvents` exposes `FetchProgress`, `FetchComplete`, and `RecordsetChangeComplete` — document any that are handled, as they represent async data operations.
+
+---
+
+## **L.5 VB6 Menu + Accelerator Key Inventory**
+**MANDATORY:** VB6 menu items and their accelerator keys (`&` prefix in `Caption`) define the application's keyboard navigation contract and must be fully documented. This is distinct from control-level `&` captions.
+
+| Menu Path | Menu Item Name | Caption (Literal) | Accelerator Key | Enabled Condition | Click Handler | Business Action |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| File | `mnuFileSave` | `&Save` | `Alt+S` | Always | `mnuFileSave_Click` | Triggers `SaveRecord()` |
+| Edit → Find | `mnuEditFind` | `&Find...` | `Alt+F` | `g_RecordLoaded = True` | `mnuEditFind_Click` | Opens `frmSearch` modal |
+
+**Key Items to Capture:**
+* **`&` Prefix in Caption:** Every `&` prefix in a menu item `Caption` defines an `Alt+[letter]` accelerator. Extract ALL of them.
+* **Shortcut Property:** VB6 menus have a `Shortcut` property (e.g., `Ctrl+S`, `F5`) — extract these as direct keyboard shortcuts, distinct from `&` accelerators.
+* **`Enabled` Property at Runtime:** Identify `mnuXxx.Enabled = False/True` assignments in code — these are runtime menu state gates driven by application state or security level.
+* **`Checked` Property:** Identify `mnuXxx.Checked = True/False` assignments — these represent toggle-state menu items (e.g., "Show Toolbar").
+* **Popup Menus:** Identify `PopupMenu` calls — extract the menu name and the control/event that triggers the context menu.
+
+---
+
+## **L.6 VB6 Error Handling Patterns**
+**MANDATORY:** VB6 uses unstructured error handling (`On Error GoTo` / `On Error Resume Next`). Each handler's scope and recovery behavior MUST be documented.
+
+| Procedure | Error Handler Label | Resume Behavior | Captured Err.Number | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| [Sub / Function name] | [e.g., `ErrHandler:`, `ExitProc:`] | [e.g., `Resume Next` / `Resume ExitProc` / `GoTo 0`] | [Specific Err.Number values trapped] | [What the error means to the user] |
+
+* **`On Error Resume Next` Scope:** Flag every block where `On Error Resume Next` is active. These are silent failure zones that require explicit error checking in the modern system.
+* **`Err.Raise` calls:** Extract custom error numbers raised — these are the domain error vocabulary.
+
+---
+
+## **L.7 UserControl vs. Third-Party OCX Distinction**
+**MANDATORY:** VB6 projects may use in-house UserControls (`.ctl` files) that contain business logic, as distinct from third-party ActiveX OCX controls that are external binary dependencies. These MUST be categorized differently because UserControls can be refactored while OCX controls must be replaced.
+
+| Control Instance Name | Type | Source | Key Exposed Properties | Key Exposed Events | Modernization Strategy |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `ctlAmountEntry` | UserControl (in-house) | `AmountEntry.ctl` | `Value`, `IsValid`, `DecimalPlaces` | `ValueChanged`, `ValidationFailed` | Refactor as React/Angular input component |
+| `Grid1` | Third-Party OCX | `MSFlexGrid.ocx` | `.Rows`, `.Cols`, `.TextMatrix(r,c)` | `DblClick`, `AfterRowColChange` | Replace with AG Grid, react-data-grid, or similar |
+
+**Key Items to Capture:**
+* **In-House UserControls:** Source `.ctl` files contain VB6 code that MUST be migrated. Enumerate all exposed properties and events — these define the component's contract with every host form.
+* **Third-Party OCX Controls:** These are binary dependencies with no migratable source code. Identify the control name, version, and CLSID (found in `.frm` or project `.vbp` files) — the CLSID is required to find or procure a modern replacement.
+* **Event Bindings:** For both types, extract all `Sub ControlName_EventName()` handlers in the host form — these are integration contracts that must be preserved in the modern component.
+* **Property Pages:** Third-party OCXes may expose design-time property pages — document any custom properties set via property pages, visible as property assignments in the `.frm` file.
+
+---
+
+# **TIER 5: SRS VERIFICATION BLOCK (MANDATORY)**
+
+> **INSTRUCTION TO LLM:** This section contains the Screen Requirements Specification (SRS) verification data. Fill in every subsection (S.1–S.5) after completing Tiers 1–4. This block provides the traceability bridge between the legacy source and the target SRS document. **Do NOT skip, abbreviate, or merge any subsection.**
+
+---
+
+## **S.1 Screen Identity**
+
+| Attribute | Value |
+| :--- | :--- |
+| **Form ID** | [**Deterministic derivation rule — apply exactly as follows:**  Format: `{MODULE_PREFIX}_{FUNCTION_KEYWORD}_{SEQ}`  • `MODULE_PREFIX` — Extract the uppercase business-domain prefix from the form object name. Strip the leading `frm` or `frmMDI` type prefix and tokenise on `_` or on camelCase word boundaries. Take the first 1–2 meaningful tokens that identify the business domain (e.g., `frmFaAncesInfofree` → tokens: `FA`, `ANCES`). Discard generic tokens such as `Main`, `Form`, `Dlg`, `Popup`, `Sub`.  • `FUNCTION_KEYWORD` — Select from: `LIST`, `EDIT`, `DETAIL`, `LOGIN`, `MENU`, `REPORT`, `IMPORT`, `EXPORT`, `SEARCH`, `APPROVAL`. Choose the keyword that best describes what the user *does* on this screen.  • `SEQ` — 3-digit zero-padded sequence number within the module (start at `001` unless a prior screen in the same module already occupies that slot).  **Example:** `frmFaAncesInfofree` → `FA_ANCES_EDIT_001`.] |
+| **Screen Name (EN)** | [Derived from the form title bar `Caption` or the form object name — not the file name] |
+| **Screen Name (JP)** | [Extract from source comment, `Me.Caption`, or string literal — preserve exact Japanese characters; write `N/A` only if no Japanese is present anywhere in the source] |
+| **Parent Form** | [If `MDIChild = True`, state the MDI parent form name; else `Standalone`] |
+| **Navigation Path** | [e.g., `Main Menu → Finance → Ancestor Information Edit`] |
+| **Access URL** | `/app/{module_name_lowercase}/{form_id_lowercase}` |
+
+---
+
+## **S.2 Business Purpose**
+
+| Attribute | Value |
+| :--- | :--- |
+| **Primary Business Action** | [One sentence: What does the user achieve by opening and using this form?] |
+| **Interaction Style** | [e.g., `Single-Record ADO Edit Form`, `Read-Only MSFlexGrid Dashboard`, `Master-Detail Data Entry`] |
+| **Target User Role** | [Who is authorized to open this form? Extract from `g_UserLevel` check or role-gate logic in `Form_Load`; write `All Users` if no gate is present] |
+| **Key Trigger** | [What user action or system event launches this form? e.g., `Double-click row in parent list form`, `Menu → Register`] |
+
+---
+
+## **S.3 Screen Controls Inventory**
+
+> Fill this table from Section 2.3. Every interactive control that is **visible and enabled** at `Form_Load` completion must appear here. Hidden or disabled controls go in the Hidden Controls subsection of Section 2.3 — **do NOT duplicate them here**.
+
+| # | Item Name (JP) | Item Name (EN) | Physical Name | Control Type | I/O | Note |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| [1] | [JP label from `Caption` or source comment] | [EN functional name] | [e.g., `txtFirstName`] | [e.g., `TextBox`] | [I / O / I+O / —] | [e.g., Mandatory, MaxLength=50] |
+
+**I/O Legend:**
+* `I` — Input only (user enters data; not pre-loaded from a record).
+* `O` — Output only (display-only; read-only `TextBox` or `Label`).
+* `I+O` — Read-then-edit (loaded from a record at `Form_Load`, then editable by the user).
+* `—` — No data I/O (action trigger or structural container — see rule below).
+
+**MANDATORY RULE — Action controls are always `—`:** `CommandButton`, `PictureButton`, and `Menu` items MUST always receive `—` in the I/O column. They trigger operations but do not hold, read, or bind data values. Assigning `I` or `O` to a button is a specification error. Static labels (`Label`), decorative lines, and structural containers (`Frame`, `SSTab`, `TabStrip`) are also always `—`.
+
+---
+
+## **S.4 Validation Rules**
+
+> Cross-populate ALL validation evidence from Tier 3.6 into this table. This is a non-negotiable requirement — see the TIER 3.6 CROSS-POPULATION MANDATE in Section 3.6.
+
+| # | Field Name (JP / EN) | Physical Name | Required (○/×) | Max Length | Input Format / Mask | Min Value | Max Value | Regular Expression | Error Message (Literal) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+
+**[TIER 3.6 CROSS-POPULATION MANDATE]:**
+* **Required (○):** If Tier 3.6 or any `If` gate contains `If Trim(txtXxx.Text) = ""` or `If Len(txtXxx.Text) = 0`, mark as Required (○).
+* **Max Length:** If Section 2.3 records a `MaxLength=N` property or a `MaskEdBox.Mask` of fixed length, record it here.
+* **Input Format / Mask:** If Tier 3.6 or a `MaskEdBox.Mask` property specifies an edit mask (e.g., `"##/##/####"`), extract it exactly.
+* **Min / Max Value:** If Tier 3.6 contains a range check (e.g., `If Val(txtAge.Text) < 0`), extract the bounds.
+* **Regular Expression:** If a regex pattern string is passed to a validation function, extract it verbatim.
+* **Completeness check:** After filling the table, verify that every input control in S.3 with `I/O = I` or `I+O` has a corresponding row here. Missing rows are a specification defect.
+
+---
+
+## **S.5 Event / Operational Specification**
+
+**[ANTI-TRUNCATION GUARDRAIL]:** Document EVERY user-actionable event on this VB6 form: every `CommandButton_Click`, `Form_Load`, save/delete/cancel handler, and any other Sub that the user can trigger. Number them sequentially starting at 1. Use the exact procedure name in the `Event Name` column.
+
+**Processing Type:** `Client processing` = pure UI logic with no database call; `Server processing` = triggers an ADO/DAO recordset operation or external DLL call; `Both` = client validation followed by a database operation.
+
+| # | Event Name (VB6 / EN) | Event Overview | Processing Type | Operation Type | Remarks |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | [Form_Load / On Load] | [Summarize what data is fetched and displayed when the form opens — reproduce the `rs.Open` SQL inline] | [Client processing / Server processing / Both] | [Initialisation / Search / CRUD Insert / CRUD Update / CRUD Delete / Navigation / Export / Print / Permission] | [e.g., Populates dropdowns, sets default field values, checks user role] |
+| 2 | [cmdSave_Click / On Save] | [Summarize the DML operation — `rs.Update` / `rs.AddNew` — including table name and key fields] | [Both] | [CRUD Insert / CRUD Update] | [e.g., Validates mandatory fields before calling rs.Update] |
+| 3 | [cmdDelete_Click / On Delete] | [Summarize delete logic; write `N/A — no delete function` if absent] | [Both] | [CRUD Delete] | [e.g., Prompts confirmation MsgBox before executing delete] |
+| 4 | [cmdCancel_Click / On Cancel] | [Describe cancel behaviour — `Unload Me`, `rs.CancelUpdate`, navigation to previous form] | [Client processing] | [Navigation] | [e.g., Discards unsaved changes and closes form] |
+
+---
+
+# **PART 5: THE MACHINE BRIDGE (MANDATORY)**
+
+## **[NAMING_MAP]**
+
+**MANDATORY:** Generate the machine-readable field-name bridge for downstream pipeline consumption.
+This block **MUST be the absolute last section** in your response — no text after the closing `}`.
+
+**Rules:**
+* Map every **legacy UI control name, form property, and key variable** discovered during your extraction to its proposed **camelCase modern equivalent**.
+* Scope includes: all form-level control names (Section 2.3), state variables from `Form_Load` (Section 3.5), session/global variables (e.g., `g_UserID`, `g_UserLevel`), menu item names (Section L.5), error handler labels (Section L.6), and UserControl exposed properties (Section L.7).
+* Use the `Naming Map (Strict Binding)` value supplied in Section 2 as your starting reference — **supplement** it with any new legacy identifiers discovered during this extraction.
+* Strip legacy VB6 naming conventions when deriving the modern name (e.g., `txtFirstName` → `firstName`, `cmdSave` → `onSave`, `lblStatus` → `statusLabel`, `fraOptions` → `optionsPanel`, `g_UserID` → `currentUserId`).
+* If no new identifiers were discovered beyond the input map, return the input map unchanged.
+* You **MUST** enclose the JSON payload in a strict Markdown code fence (` ```json `).
+
+```json
+{
+  "LEGACY_CONTROL_OR_VARIABLE_NAME": "modernCamelCaseName"
+}
+```

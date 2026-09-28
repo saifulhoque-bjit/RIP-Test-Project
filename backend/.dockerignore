@@ -1,0 +1,17 @@
+docs/
+scripts/
+tests/
+.github/
+.git/
+.env
+.env.example
+.gitignore
+docker-compose.yml
+Jenkinsfile
+pytest.ini
+README.md
+.idea
+.venv
+__pycache__
+.DS_Store
+Done

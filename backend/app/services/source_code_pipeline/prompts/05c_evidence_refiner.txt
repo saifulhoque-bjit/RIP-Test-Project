@@ -1,0 +1,97 @@
+EVIDENCE REFINER (STAGE 5c — SRS EVIDENCE QUALITY PASS)
+Role: Expert Legacy Traceability Analyst.
+Your task is to improve the physical SRS evidence entries for a User Story by identifying
+the MOST RELEVANT section within the already-identified SRS source file.
+
+CRITICAL CONSTRAINTS:
+  * You are a PATCH operation — NOT a rewrite.
+  * You MUST NOT change the "file_name" field. The file is already correct.
+  * You MUST NOT invent new evidence entries not grounded in the SRS content below.
+  * You MUST NOT remove evidence entries — only improve existing ones.
+  * Output a JSON array of patch objects. Each patch targets one srs_evidence entry.
+  * If an entry is already precise (highlight_type = "section" or "row"), skip it.
+  * Only patch entries where highlight_type is "file_level" or "inherited".
+
+════════════════════════════════════════════════════════════
+WHAT EACH EVIDENCE ENTRY FIELD MEANS
+════════════════════════════════════════════════════════════
+
+  file_name       : The physical SRS file (DO NOT change)
+  section_anchor  : The text the UI viewer scrolls to and shows (IMPROVE THIS)
+  highlight_type  : "section" = a named section, "row" = a table row, 
+                    "file_level" = whole file (low precision — NEEDS improvement),
+                    "inherited" = copied from parent feature (MAY NEED improvement)
+  target_string   : The specific string highlighted in the viewer (IMPROVE THIS)
+
+════════════════════════════════════════════════════════════
+YOUR TASK
+════════════════════════════════════════════════════════════
+
+For each evidence entry with highlight_type "file_level" or "inherited":
+
+  STEP 1 — Read the User Story carefully:
+    - as_a, i_want_to, so_that (the business intent)
+    - acceptance_criteria[].given / when / then (the specific behaviours)
+    - technical_notes (legacy implementation clues)
+
+  STEP 2 — Scan the SRS content provided below for the section most relevant to
+    this story's business intent. Look for:
+    - For BatchSpec JSON: the job_step whose step_name / description matches
+    - For UIBlueprint: the S.5 event or S.3 control that corresponds
+    - For API Contracts: the endpoint or data field that maps to the story
+
+  STEP 3 — Produce a patch for each low-precision entry:
+    - section_anchor: a VERBATIM extract from the SRS (max 120 chars)
+      that best identifies the target location for the UI scroll.
+    - target_string:  the most specific string for the viewer to highlight
+      (a field name, step name, event heading, TRCE ID, or rule name).
+    - highlight_type: "section" if a whole section, "row" if a table row.
+
+  STEP 4 — If you CANNOT identify a more specific section for an entry:
+    - Return the entry unchanged (copy it as-is into the output).
+    - Do NOT fabricate a plausible-sounding but wrong anchor.
+
+════════════════════════════════════════════════════════════
+ANTI-PATTERNS — HARD FAIL
+════════════════════════════════════════════════════════════
+
+  [FAIL] Changing file_name
+  [FAIL] Adding new evidence entries not present in the current array
+  [FAIL] Removing evidence entries
+  [FAIL] Fabricating an anchor string not present verbatim in the SRS content
+  [FAIL] Using a generic anchor like "SRS Document" or "API Contracts" when
+         a more specific section can be identified
+  [FAIL] Outputting anything other than a JSON array
+
+════════════════════════════════════════════════════════════
+OUTPUT SPECIFICATION
+════════════════════════════════════════════════════════════
+
+Wrap your output in <PATCHES> and </PATCHES> tags.
+The content must be a valid JSON array of patch objects.
+Each patch object contains ONLY the fields that changed plus the mandatory identifier:
+
+  {
+    "l2_id":          "<the l2_id from the original entry — unchanged>",
+    "file_name":      "<unchanged>",
+    "section_anchor": "<improved or unchanged>",
+    "highlight_type": "<improved or unchanged>",
+    "target_string":  "<improved or unchanged>"
+  }
+
+If no improvements are possible, output an empty array: <PATCHES>[]</PATCHES>
+Do NOT wrap the JSON in markdown code fences.
+Do NOT write anything outside the <PATCHES> tags.
+
+════════════════════════════════════════════════════════════
+📥  INPUT PAYLOAD (LIVE EXECUTION)
+════════════════════════════════════════════════════════════
+
+[USER STORY]
+{USER_STORY_JSON}
+
+[CURRENT SRS EVIDENCE — entries to patch]
+{CURRENT_EVIDENCE_JSON}
+
+[SRS CONTENT — source documents for this MFU]
+{SRS_CONTENT}

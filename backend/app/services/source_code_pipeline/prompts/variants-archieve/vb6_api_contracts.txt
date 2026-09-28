@@ -1,0 +1,71 @@
+# **LANGUAGE FORENSIC ADDENDUM: VB6 — API CONTRACTS**
+*(Injected into Universal Core V3 at the language_specific_tiers slot)**
+
+---
+
+## **L.1 ADO / DAO Recordset Contract**
+**MANDATORY:** VB6 data access relies on ADO (`ADODB.Recordset`) or DAO (`DAO.Recordset`). Every Recordset used for data retrieval or persistence MUST be fully documented.
+
+| Recordset Variable | Library | RecordSource / SQL | CursorType | LockType | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [rs_name] | [ADO / DAO] | [Literal SQL or stored proc name] | [adOpenStatic / adOpenDynamic] | [adLockOptimistic / adLockPessimistic] | [What data this recordset manages] |
+
+**Connection Context:**
+* **ConnectionString / DSN:** Extract the literal connection string or DSN name — this identifies the target database.
+* **`rs.Open` arguments:** Document the full `rs.Open Source, Connection, CursorType, LockType` signature.
+* **`rs.Update` / `rs.AddNew` / `rs.Delete`:** Document each DML call, the event that triggers it, and whether an explicit `cn.BeginTrans / CommitTrans / RollbackTrans` wraps it.
+* **`rs.MoveFirst` / `rs.MoveNext` loops:** Identify all record iteration patterns — these map to modern query projections or batch operations.
+
+---
+
+## **L.2 COM Server / DLL Dependency Mapping**
+**MANDATORY:** VB6 applications frequently delegate logic to out-of-process COM servers or ActiveX DLLs. Every `CreateObject()` and `New [ExternalClass]` call MUST be inventoried.
+
+| Variable | ProgID / Class | Key Methods Called | Error Handling | Modern Equivalent |
+| :--- | :--- | :--- | :--- | :--- |
+| [obj_var] | [e.g., `"MyApp.BusinessRules"`] | [e.g., `.CalculateTax(amount)`] | [On Error GoTo / check Err.Number] | [e.g., Internal service / NuGet package] |
+
+* **Early Binding vs. Late Binding:** Early binding (`Dim obj As MyLib.MyClass`) reveals the type at compile time. Late binding (`Dim obj As Object` + `CreateObject(...)`) requires runtime resolution — flag these as higher-risk dependencies.
+* **Out-of-Process (EXE) vs. In-Process (DLL):** Note if the COM server is a separate EXE (out-of-process, potentially remote via DCOM) — this has significant latency and error handling implications.
+
+---
+
+## **L.3 VB6 Error Number Catalog**
+**MANDATORY:** Extract all `Err.Number` values that are explicitly trapped or raised. These form the domain error vocabulary that must be preserved in the modern API's error response schema.
+
+| Err.Number | Err.Description (Literal) | Trigger Condition | Modern HTTP Code / Error Code |
+| :--- | :--- | :--- | :--- |
+| [e.g., `3021`] | [e.g., `"No current record"`] | [e.g., Recordset empty after open] | [e.g., 404 Not Found] |
+| [e.g., custom `vbObjectError + 1001`] | [e.g., `"Insufficient credit limit"`] | [e.g., Business rule violation on save] | [e.g., 422 Unprocessable Entity] |
+
+* **`vbObjectError` Offset:** VB6 custom errors use `Err.Raise vbObjectError + n`. Extract all `n` values and their associated descriptions — these are the application's proprietary error codes.
+
+---
+
+## **L.4 VB6 Type Declaration → DTO Mapping**
+**MANDATORY:** VB6 `Type...End Type` constructs define structured data. Each Type maps directly to a modern DTO/record class.
+
+```
+' Example legacy Type
+Public Type CustomerRecord
+    CustomerID  As Long
+    Name        As String * 50
+    Balance     As Currency
+End Type
+```
+
+| Legacy Type Name | Field Name | VB6 Type | Fixed Length? | Modern DTO Field | Modern Type |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [TypeName] | [field_name] | [String * 50 / Long / Currency] | [Y/N] | [modernFieldName] | [String(50) / Long / Decimal] |
+
+---
+
+## **L.5 File I/O Patterns**
+*Apply this section only if the artifact performs direct file I/O (sequential, random, or binary access).*
+
+| Operation | File Number | Mode | File Path Source | Record Layout / Format | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `Open` | [#1] | [Input / Output / Append / Binary] | [Literal path or variable] | [Fixed-width / CSV / Binary struct] | [What data is read/written] |
+
+* **Fixed-Width Records:** Document the exact column positions and lengths — these are the file's implicit schema and must be replicated in the modern file parser.
+* **`Print #n` / `Write #n`:** Distinguish between `Print` (human-readable, no delimiters) and `Write` (comma-delimited, quoted strings) — they produce different file formats.

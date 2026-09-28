@@ -1,0 +1,636 @@
+// RIP Celery Workers — QA Deploy Pipeline (4 workers)
+//
+// Workers deployed by this pipeline:
+//   celery-rfp-generation          — document_parsing, module_feature_generation, user_story_generation
+//   celery-incremental             — document_parsing, incremental_update, routing, parsing, neo4j_sync, notifications
+//   celery-feedback                — module_feature_regeneration, user_story_feedback_regeneration
+//   celery-source-code-processing  — source_code_parsing/processing/persistence, source_code_feature_regeneration, cleanup
+//
+// DEPLOY_MODE parameter:
+//   code-only    → register new task def revision with EXISTING env vars (image :qa-latest only)
+//   env-and-code → merge DEVELOPER-OWNED env block below into existing task def → deploy
+//
+// NOTE: Queue assignments and worker concurrency are baked into the container
+//       command (Terraform-managed). This pipeline never touches the command field.
+// NOTE: This pipeline does NOT build a Docker image — celery uses the same
+//       rip/qa/task-management image built by Jenkinsfile.rip-backend-qa-deploy.
+//       Run the backend QA pipeline first to push a new image, then run this one.
+
+pipeline {
+
+    agent any
+
+    parameters {
+        choice(
+            name: 'DEPLOY_MODE',
+            choices: ['code-only', 'env-and-code'],
+            description: '''code-only    → deploy all 4 celery workers with EXISTING env vars (no env changes)
+env-and-code → merge updated env vars from this Jenkinsfile into all 4 task defs, then deploy'''
+        )
+    }
+
+    environment {
+
+        // ── CONFIGURATION — change this block per environment ─────────────────
+        ECS_CLUSTER = 'rip-rip-qa-cluster'
+        AWS_ENV     = 'rip-qa'
+
+        // ── AWS ───────────────────────────────────────────────────────────────
+        AWS_REGION     = 'ap-northeast-1'
+        AWS_ACCOUNT_ID = '404210401723'
+
+        // ── Derived — do not change ───────────────────────────────────────────
+        ECR_REGISTRY     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPO_BACKEND = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/rip/qa/task-management"
+
+        // ── 4 Celery task definitions and services ────────────────────────────
+        TASK_DEF_RFP         = "rip-${AWS_ENV}-celery-rfp-generation"
+        TASK_DEF_INCREMENTAL = "rip-${AWS_ENV}-celery-incremental"
+        TASK_DEF_FEEDBACK    = "rip-${AWS_ENV}-celery-feedback"
+        TASK_DEF_SOURCE_CODE = "rip-${AWS_ENV}-celery-source-code-processing"
+
+        ECS_SERVICE_RFP         = "rip-${AWS_ENV}-svc-celery-rfp-generation"
+        ECS_SERVICE_INCREMENTAL = "rip-${AWS_ENV}-svc-celery-incremental"
+        ECS_SERVICE_FEEDBACK    = "rip-${AWS_ENV}-svc-celery-feedback"
+        ECS_SERVICE_SOURCE_CODE = "rip-${AWS_ENV}-svc-celery-source-code-processing"
+
+        LOG_GROUP_RFP         = '/ecs/rip/rip-qa/celery-rfp-generation'
+        LOG_GROUP_INCREMENTAL = '/ecs/rip/rip-qa/celery-incremental'
+        LOG_GROUP_FEEDBACK    = '/ecs/rip/rip-qa/celery-feedback'
+        LOG_GROUP_SOURCE_CODE = '/ecs/rip/rip-qa/celery-source-code-processing'
+
+        TOOLS_IMAGE = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/infra/common-tools:latest"
+        AWS_CREDS   = credentials('AWS_ACCESS_KEY_ID')
+
+        // ════════════════════════════════════════════════════════════════════
+        // DEVELOPER-OWNED — modify these values to update env in ECS task defs.
+        // Run pipeline with mode 'env-and-code' to apply changes to all 4 workers.
+        // Permanent secrets (DB, Cognito, API keys) and infrastructure env
+        // (SQS, SES, Redis, S3 bucket) are set once via Terraform and carried
+        // forward automatically — do NOT add them here.
+        // Queue assignments and concurrency are in the container command — do NOT add them here.
+        // ════════════════════════════════════════════════════════════════════
+
+        NODE_ENV  = 'rip-qa'
+        LOG_LEVEL = 'info'
+
+        CELERY_BROKER_SOCKET_TIMEOUT         = ''
+        CELERY_RESULT_SOCKET_TIMEOUT         = ''
+        CELERY_BROKER_SOCKET_CONNECT_TIMEOUT = '30'
+        CELERY_BROKER_HEALTH_CHECK_INTERVAL  = '30'
+
+        AWS_S3_PRESIGNED_URL_EXPIRY = '3600'
+
+        // ── Rate Limiting ─────────────────────────────────────────────────────
+        RATE_LIMIT_AUTH_REGISTER = '10/minute'
+        RATE_LIMIT_AUTH_CONFIRM  = '10/minute'
+        RATE_LIMIT_AUTH_LOGIN    = '20/minute'
+        RATE_LIMIT_AUTH_REFRESH  = '30/minute'
+
+        // ── Misc ──────────────────────────────────────────────────────────────
+        SOURCE_LOCAL_DOWNLOAD_DIR    = 'temp/sources'
+        S3_DOWNLOAD_CHUNK_SIZE_MB    = '5'
+        SOURCE_MAX_FILE_SIZE_MB      = '500'
+        SOURCE_LINK_MAX_FILE_SIZE_MB = '500'
+        SOURCE_BULK_MAX_FILES        = '20'
+        DB_AUTO_CREATE               = 'true'
+        SEED_SUPER_ADMIN_ENABLED     = 'true'
+        SUPER_ADMIN_EMAIL            = 'abdul.halim@bjitgroup.com'
+        SUPER_ADMIN_PASSWORD         = 'Bjit_12345'
+        SUPER_ADMIN_NAME             = 'Super Admin'
+        DEFAULT_TENANT_SLUG          = 'default'
+        FRONTEND_BASE_URL            = 'https://rip-qa.bjitgroup.com'
+        INVITATION_EXPIRY_DAYS       = '7'
+    }
+
+    stages {
+
+        // ── Stage 1 ───────────────────────────────────────────────────────────
+        stage('Pull Tools Image') {
+            steps {
+                script {
+                    docker.withRegistry(
+                        "https://${ECR_REGISTRY}",
+                        "ecr:${AWS_REGION}:AWS_ACCESS_KEY_ID"
+                    ) {
+                        docker.image("${TOOLS_IMAGE}").pull()
+                    }
+                }
+            }
+        }
+
+        // ── Stage 2 ───────────────────────────────────────────────────────────
+        // Snapshot the current task def revision and one running task log
+        // for each of the 4 workers before any changes are made.
+        stage('Capture Current State') {
+            steps {
+                script {
+                    docker.image("${TOOLS_IMAGE}").inside(
+                        "--entrypoint='' " +
+                        "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                        "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                        "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                    ) {
+                        sh """
+                            set -e
+                            echo "============================================================"
+                            echo "  PRE-DEPLOY SNAPSHOT — Deploy mode : ${params.DEPLOY_MODE}"
+                            echo "============================================================"
+
+                            snapshot_service() {
+                                LABEL="\$1"
+                                SVC="\$2"
+                                LOG_GROUP="\$3"
+                                CONTAINER="\$4"
+                                OUT_FILE="\$5"
+
+                                ARN=\$(aws ecs describe-services \
+                                    --cluster ${ECS_CLUSTER} --services "\$SVC" \
+                                    --region ${AWS_REGION} \
+                                    --query 'services[0].taskDefinition' --output text)
+                                REV=\$(echo "\$ARN" | awk -F: '{print \$NF}')
+                                echo "  [\$LABEL]  active task def : \$ARN  (rev: \$REV)"
+                                echo "\$ARN" > "\$OUT_FILE"
+
+                                TASK_ID=\$(aws ecs list-tasks \
+                                    --cluster ${ECS_CLUSTER} --service-name "\$SVC" \
+                                    --region ${AWS_REGION} \
+                                    --query 'taskArns[0]' --output text 2>/dev/null || echo "None")
+                                if [ "\$TASK_ID" != "None" ] && [ -n "\$TASK_ID" ]; then
+                                    TASK_SHORT=\$(echo "\$TASK_ID" | awk -F/ '{print \$NF}')
+                                    echo "  [\$LABEL]  running task   : \$TASK_SHORT"
+                                    echo "  [\$LABEL]  last 20 log lines:"
+                                    aws logs get-log-events \
+                                        --log-group-name "\$LOG_GROUP" \
+                                        --log-stream-name "\$CONTAINER/\$CONTAINER/\$TASK_SHORT" \
+                                        --region ${AWS_REGION} \
+                                        --limit 20 \
+                                        --query 'events[*].message' \
+                                        --output text || echo "  (logs not yet available)"
+                                else
+                                    echo "  [\$LABEL]  no running tasks found"
+                                fi
+                            }
+
+                            snapshot_service "rfp-generation"         "${ECS_SERVICE_RFP}"         "${LOG_GROUP_RFP}"         "celery-rfp-generation"         "\${WORKSPACE}/rfp_old_arn.txt"
+                            snapshot_service "incremental"            "${ECS_SERVICE_INCREMENTAL}" "${LOG_GROUP_INCREMENTAL}" "celery-incremental"            "\${WORKSPACE}/incremental_old_arn.txt"
+                            snapshot_service "feedback"               "${ECS_SERVICE_FEEDBACK}"    "${LOG_GROUP_FEEDBACK}"    "celery-feedback"               "\${WORKSPACE}/feedback_old_arn.txt"
+                            snapshot_service "source-code-processing" "${ECS_SERVICE_SOURCE_CODE}" "${LOG_GROUP_SOURCE_CODE}" "celery-source-code-processing" "\${WORKSPACE}/source_code_old_arn.txt"
+
+                            echo "============================================================"
+                        """
+                    }
+                }
+            }
+        }
+
+        // ── Stage 3 ───────────────────────────────────────────────────────────
+        // Register new task def revisions for all 4 workers sequentially.
+        // Sequential (not parallel) to avoid AWS ECS RegisterTaskDefinition rate limits.
+        stage('Register Task Defs (all 4)') {
+            steps {
+                script {
+                    docker.image("${TOOLS_IMAGE}").inside(
+                        "--entrypoint='' " +
+                        "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                        "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                        "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                    ) {
+                        def j = { def v -> (v == null ? '' : v.toString()).replace('\\', '\\\\').replace('"', '\\"') }
+                        writeFile file: 'new_env.json', text: (
+                            '[' +
+                            '{"name":"NODE_ENV","value":"'                             + j(env.NODE_ENV)                             + '"},' +
+                            '{"name":"LOG_LEVEL","value":"'                            + j(env.LOG_LEVEL)                            + '"},' +
+                            '{"name":"CELERY_BROKER_SOCKET_TIMEOUT","value":"'         + j(env.CELERY_BROKER_SOCKET_TIMEOUT)         + '"},' +
+                            '{"name":"CELERY_RESULT_SOCKET_TIMEOUT","value":"'         + j(env.CELERY_RESULT_SOCKET_TIMEOUT)         + '"},' +
+                            '{"name":"CELERY_BROKER_SOCKET_CONNECT_TIMEOUT","value":"' + j(env.CELERY_BROKER_SOCKET_CONNECT_TIMEOUT) + '"},' +
+                            '{"name":"CELERY_BROKER_HEALTH_CHECK_INTERVAL","value":"'  + j(env.CELERY_BROKER_HEALTH_CHECK_INTERVAL)  + '"},' +
+                            '{"name":"AWS_S3_PRESIGNED_URL_EXPIRY","value":"'          + j(env.AWS_S3_PRESIGNED_URL_EXPIRY)          + '"},' +
+                            '{"name":"RATE_LIMIT_AUTH_REGISTER","value":"'             + j(env.RATE_LIMIT_AUTH_REGISTER)             + '"},' +
+                            '{"name":"RATE_LIMIT_AUTH_CONFIRM","value":"'              + j(env.RATE_LIMIT_AUTH_CONFIRM)              + '"},' +
+                            '{"name":"RATE_LIMIT_AUTH_LOGIN","value":"'                + j(env.RATE_LIMIT_AUTH_LOGIN)                + '"},' +
+                            '{"name":"RATE_LIMIT_AUTH_REFRESH","value":"'              + j(env.RATE_LIMIT_AUTH_REFRESH)              + '"},' +
+                            '{"name":"SOURCE_LOCAL_DOWNLOAD_DIR","value":"'            + j(env.SOURCE_LOCAL_DOWNLOAD_DIR)            + '"},' +
+                            '{"name":"S3_DOWNLOAD_CHUNK_SIZE_MB","value":"'            + j(env.S3_DOWNLOAD_CHUNK_SIZE_MB)            + '"},' +
+                            '{"name":"SOURCE_MAX_FILE_SIZE_MB","value":"'              + j(env.SOURCE_MAX_FILE_SIZE_MB)              + '"},' +
+                            '{"name":"SOURCE_LINK_MAX_FILE_SIZE_MB","value":"'         + j(env.SOURCE_LINK_MAX_FILE_SIZE_MB)         + '"},' +
+                            '{"name":"SOURCE_BULK_MAX_FILES","value":"'                + j(env.SOURCE_BULK_MAX_FILES)                + '"},' +
+                            '{"name":"DB_AUTO_CREATE","value":"'                       + j(env.DB_AUTO_CREATE)                       + '"},' +
+                            '{"name":"SEED_SUPER_ADMIN_ENABLED","value":"'             + j(env.SEED_SUPER_ADMIN_ENABLED)             + '"},' +
+                            '{"name":"SUPER_ADMIN_EMAIL","value":"'                    + j(env.SUPER_ADMIN_EMAIL)                    + '"},' +
+                            '{"name":"SUPER_ADMIN_PASSWORD","value":"'                 + j(env.SUPER_ADMIN_PASSWORD)                 + '"},' +
+                            '{"name":"SUPER_ADMIN_NAME","value":"'                     + j(env.SUPER_ADMIN_NAME)                     + '"},' +
+                            '{"name":"DEFAULT_TENANT_SLUG","value":"'                  + j(env.DEFAULT_TENANT_SLUG)                  + '"},' +
+                            '{"name":"FRONTEND_BASE_URL","value":"'                    + j(env.FRONTEND_BASE_URL)                    + '"},' +
+                            '{"name":"INVITATION_EXPIRY_DAYS","value":"'               + j(env.INVITATION_EXPIRY_DAYS)               + '"}' +
+                            ']'
+                        )
+
+                        sh """
+                            set -e
+
+                            register_celery_task_def() {
+                                FAMILY="\$1"
+                                OUT_FILE="\$2"
+                                NEW_ARN_FILE="\$3"
+
+                                echo "==> Fetching latest revision for \$FAMILY..."
+                                TASK_DEF_JSON=\$(aws ecs describe-task-definition \
+                                    --task-definition "\$FAMILY" \
+                                    --region ${AWS_REGION} \
+                                    --output json)
+
+                                if [ "${params.DEPLOY_MODE}" = "env-and-code" ]; then
+                                    echo "==> Merging env vars, preserving command, setting image to :qa-latest..."
+                                    jq empty "\${WORKSPACE}/new_env.json"
+                                    echo "  JSON valid. \$(jq length "\${WORKSPACE}/new_env.json") vars to merge."
+                                    echo "\$TASK_DEF_JSON" \
+                                    | jq --slurpfile new_env "\${WORKSPACE}/new_env.json" '
+                                        .taskDefinition as \$td |
+                                        (\$td.containerDefinitions[0].environment | map({(.name): .value}) | add // {}) as \$existing_map |
+                                        (\$new_env[0] | map({(.name): .value}) | add) as \$new_map |
+                                        ((\$existing_map * \$new_map) | to_entries | map({name: .key, value: .value})) as \$merged |
+                                        \$td |
+                                        del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt) |
+                                        .containerDefinitions[0].environment = \$merged |
+                                        .containerDefinitions[0].image = "${ECR_REPO_BACKEND}:qa-latest"
+                                    ' > "\$OUT_FILE"
+                                else
+                                    echo "==> code-only: preserving env and command, setting image to :qa-latest..."
+                                    echo "\$TASK_DEF_JSON" \
+                                    | jq '
+                                        .taskDefinition |
+                                        del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                                            .compatibilities, .registeredAt, .registeredBy, .deregisteredAt) |
+                                        .containerDefinitions[0].image = "${ECR_REPO_BACKEND}:qa-latest"
+                                    ' > "\$OUT_FILE"
+                                fi
+
+                                NEW_ARN=\$(aws ecs register-task-definition \
+                                    --region ${AWS_REGION} \
+                                    --cli-input-json "file://\$OUT_FILE" \
+                                    --output json \
+                                | jq -r '.taskDefinition.taskDefinitionArn')
+                                echo "\$NEW_ARN" > "\$NEW_ARN_FILE"
+                                echo "  Registered: \$NEW_ARN"
+                            }
+
+                            register_celery_task_def "${TASK_DEF_RFP}"         /tmp/new_rfp_taskdef.json         "\${WORKSPACE}/rfp_new_arn.txt"
+                            register_celery_task_def "${TASK_DEF_INCREMENTAL}" /tmp/new_incremental_taskdef.json "\${WORKSPACE}/incremental_new_arn.txt"
+                            register_celery_task_def "${TASK_DEF_FEEDBACK}"    /tmp/new_feedback_taskdef.json    "\${WORKSPACE}/feedback_new_arn.txt"
+                            register_celery_task_def "${TASK_DEF_SOURCE_CODE}" /tmp/new_source_code_taskdef.json "\${WORKSPACE}/source_code_new_arn.txt"
+
+                            echo "------------------------------------------------------------"
+                            echo "  NEW rfp-generation ARN         : \$(cat "\${WORKSPACE}/rfp_new_arn.txt")"
+                            echo "  NEW incremental ARN            : \$(cat "\${WORKSPACE}/incremental_new_arn.txt")"
+                            echo "  NEW feedback ARN               : \$(cat "\${WORKSPACE}/feedback_new_arn.txt")"
+                            echo "  NEW source-code-processing ARN : \$(cat "\${WORKSPACE}/source_code_new_arn.txt")"
+                            echo "------------------------------------------------------------"
+                        """
+                    }
+                }
+            }
+        }
+
+        // ── Stage 4 ───────────────────────────────────────────────────────────
+        // Deploy all 4 celery workers in parallel and wait for each to stabilise.
+        stage('Deploy All 4 Celery Workers') {
+            parallel {
+
+                stage('Deploy: rfp-generation') {
+                    steps {
+                        script {
+                            docker.image("${TOOLS_IMAGE}").inside(
+                                "--entrypoint='' " +
+                                "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                                "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                                "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                            ) {
+                                sh """
+                                    set -e
+                                    LABEL="rfp-generation"
+                                    SVC="${ECS_SERVICE_RFP}"
+                                    NEW_ARN=\$(cat "\${WORKSPACE}/rfp_new_arn.txt")
+
+                                    echo "==> [\$LABEL] Updating service with: \$NEW_ARN"
+                                    aws ecs update-service \
+                                        --region ${AWS_REGION} \
+                                        --cluster ${ECS_CLUSTER} \
+                                        --service "\$SVC" \
+                                        --task-definition "\$NEW_ARN" \
+                                        --force-new-deployment \
+                                        --query 'service.{service:serviceName,taskDef:taskDefinition,status:status}' \
+                                        --output table
+
+                                    echo "==> [\$LABEL] Waiting for stability (max 10 min)..."
+                                    ELAPSED=0
+                                    while [ \$ELAPSED -lt 600 ]; do
+                                        SVC_JSON=\$(aws ecs describe-services \
+                                            --cluster ${ECS_CLUSTER} --services "\$SVC" \
+                                            --region ${AWS_REGION} --query 'services[0]' --output json)
+                                        RUNNING=\$(echo "\$SVC_JSON" | jq -r '.runningCount')
+                                        DESIRED=\$(echo "\$SVC_JSON" | jq -r '.desiredCount')
+                                        PRIMARY=\$(echo "\$SVC_JSON" | jq -r '.deployments[]|select(.status=="PRIMARY")')
+                                        STATE=\$(echo "\$PRIMARY" | jq -r '.rolloutState')
+                                        REV=\$(echo "\$PRIMARY" | jq -r '.taskDefinition' | awk -F: '{print \$NF}')
+                                        echo "  [\$LABEL][\${ELAPSED}s] \${RUNNING}/\${DESIRED} running | \${STATE} | rev: \${REV}"
+                                        [ "\$STATE" = "COMPLETED" ] && [ "\$RUNNING" = "\$DESIRED" ] && break
+                                        [ "\$STATE" = "FAILED"    ] && echo "[\$LABEL] ECS rollback triggered" && exit 1
+                                        sleep 15; ELAPSED=\$((ELAPSED+15))
+                                    done
+                                    [ \$ELAPSED -ge 600 ] && echo "TIMEOUT — \$LABEL did not stabilise" && exit 1
+                                    echo "  [\$LABEL] STABLE — \${RUNNING}/\${DESIRED} running | rev: \${REV}"
+                                """
+                            }
+                        }
+                    }
+                }
+
+                stage('Deploy: incremental') {
+                    steps {
+                        script {
+                            docker.image("${TOOLS_IMAGE}").inside(
+                                "--entrypoint='' " +
+                                "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                                "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                                "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                            ) {
+                                sh """
+                                    set -e
+                                    LABEL="incremental"
+                                    SVC="${ECS_SERVICE_INCREMENTAL}"
+                                    NEW_ARN=\$(cat "\${WORKSPACE}/incremental_new_arn.txt")
+
+                                    echo "==> [\$LABEL] Updating service with: \$NEW_ARN"
+                                    aws ecs update-service \
+                                        --region ${AWS_REGION} \
+                                        --cluster ${ECS_CLUSTER} \
+                                        --service "\$SVC" \
+                                        --task-definition "\$NEW_ARN" \
+                                        --force-new-deployment \
+                                        --query 'service.{service:serviceName,taskDef:taskDefinition,status:status}' \
+                                        --output table
+
+                                    echo "==> [\$LABEL] Waiting for stability (max 10 min)..."
+                                    ELAPSED=0
+                                    while [ \$ELAPSED -lt 600 ]; do
+                                        SVC_JSON=\$(aws ecs describe-services \
+                                            --cluster ${ECS_CLUSTER} --services "\$SVC" \
+                                            --region ${AWS_REGION} --query 'services[0]' --output json)
+                                        RUNNING=\$(echo "\$SVC_JSON" | jq -r '.runningCount')
+                                        DESIRED=\$(echo "\$SVC_JSON" | jq -r '.desiredCount')
+                                        PRIMARY=\$(echo "\$SVC_JSON" | jq -r '.deployments[]|select(.status=="PRIMARY")')
+                                        STATE=\$(echo "\$PRIMARY" | jq -r '.rolloutState')
+                                        REV=\$(echo "\$PRIMARY" | jq -r '.taskDefinition' | awk -F: '{print \$NF}')
+                                        echo "  [\$LABEL][\${ELAPSED}s] \${RUNNING}/\${DESIRED} running | \${STATE} | rev: \${REV}"
+                                        [ "\$STATE" = "COMPLETED" ] && [ "\$RUNNING" = "\$DESIRED" ] && break
+                                        [ "\$STATE" = "FAILED"    ] && echo "[\$LABEL] ECS rollback triggered" && exit 1
+                                        sleep 15; ELAPSED=\$((ELAPSED+15))
+                                    done
+                                    [ \$ELAPSED -ge 600 ] && echo "TIMEOUT — \$LABEL did not stabilise" && exit 1
+                                    echo "  [\$LABEL] STABLE — \${RUNNING}/\${DESIRED} running | rev: \${REV}"
+                                """
+                            }
+                        }
+                    }
+                }
+
+                stage('Deploy: feedback') {
+                    steps {
+                        script {
+                            docker.image("${TOOLS_IMAGE}").inside(
+                                "--entrypoint='' " +
+                                "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                                "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                                "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                            ) {
+                                sh """
+                                    set -e
+                                    LABEL="feedback"
+                                    SVC="${ECS_SERVICE_FEEDBACK}"
+                                    NEW_ARN=\$(cat "\${WORKSPACE}/feedback_new_arn.txt")
+
+                                    echo "==> [\$LABEL] Updating service with: \$NEW_ARN"
+                                    aws ecs update-service \
+                                        --region ${AWS_REGION} \
+                                        --cluster ${ECS_CLUSTER} \
+                                        --service "\$SVC" \
+                                        --task-definition "\$NEW_ARN" \
+                                        --force-new-deployment \
+                                        --query 'service.{service:serviceName,taskDef:taskDefinition,status:status}' \
+                                        --output table
+
+                                    echo "==> [\$LABEL] Waiting for stability (max 10 min)..."
+                                    ELAPSED=0
+                                    while [ \$ELAPSED -lt 600 ]; do
+                                        SVC_JSON=\$(aws ecs describe-services \
+                                            --cluster ${ECS_CLUSTER} --services "\$SVC" \
+                                            --region ${AWS_REGION} --query 'services[0]' --output json)
+                                        RUNNING=\$(echo "\$SVC_JSON" | jq -r '.runningCount')
+                                        DESIRED=\$(echo "\$SVC_JSON" | jq -r '.desiredCount')
+                                        PRIMARY=\$(echo "\$SVC_JSON" | jq -r '.deployments[]|select(.status=="PRIMARY")')
+                                        STATE=\$(echo "\$PRIMARY" | jq -r '.rolloutState')
+                                        REV=\$(echo "\$PRIMARY" | jq -r '.taskDefinition' | awk -F: '{print \$NF}')
+                                        echo "  [\$LABEL][\${ELAPSED}s] \${RUNNING}/\${DESIRED} running | \${STATE} | rev: \${REV}"
+                                        [ "\$STATE" = "COMPLETED" ] && [ "\$RUNNING" = "\$DESIRED" ] && break
+                                        [ "\$STATE" = "FAILED"    ] && echo "[\$LABEL] ECS rollback triggered" && exit 1
+                                        sleep 15; ELAPSED=\$((ELAPSED+15))
+                                    done
+                                    [ \$ELAPSED -ge 600 ] && echo "TIMEOUT — \$LABEL did not stabilise" && exit 1
+                                    echo "  [\$LABEL] STABLE — \${RUNNING}/\${DESIRED} running | rev: \${REV}"
+                                """
+                            }
+                        }
+                    }
+                }
+
+                stage('Deploy: source-code-processing') {
+                    steps {
+                        script {
+                            docker.image("${TOOLS_IMAGE}").inside(
+                                "--entrypoint='' " +
+                                "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                                "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                                "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                            ) {
+                                sh """
+                                    set -e
+                                    LABEL="source-code-processing"
+                                    SVC="${ECS_SERVICE_SOURCE_CODE}"
+                                    NEW_ARN=\$(cat "\${WORKSPACE}/source_code_new_arn.txt")
+
+                                    echo "==> [\$LABEL] Updating service with: \$NEW_ARN"
+                                    aws ecs update-service \
+                                        --region ${AWS_REGION} \
+                                        --cluster ${ECS_CLUSTER} \
+                                        --service "\$SVC" \
+                                        --task-definition "\$NEW_ARN" \
+                                        --force-new-deployment \
+                                        --query 'service.{service:serviceName,taskDef:taskDefinition,status:status}' \
+                                        --output table
+
+                                    echo "==> [\$LABEL] Waiting for stability (max 15 min — longer due to 2 h task stop_timeout)..."
+                                    ELAPSED=0
+                                    while [ \$ELAPSED -lt 900 ]; do
+                                        SVC_JSON=\$(aws ecs describe-services \
+                                            --cluster ${ECS_CLUSTER} --services "\$SVC" \
+                                            --region ${AWS_REGION} --query 'services[0]' --output json)
+                                        RUNNING=\$(echo "\$SVC_JSON" | jq -r '.runningCount')
+                                        DESIRED=\$(echo "\$SVC_JSON" | jq -r '.desiredCount')
+                                        PRIMARY=\$(echo "\$SVC_JSON" | jq -r '.deployments[]|select(.status=="PRIMARY")')
+                                        STATE=\$(echo "\$PRIMARY" | jq -r '.rolloutState')
+                                        REV=\$(echo "\$PRIMARY" | jq -r '.taskDefinition' | awk -F: '{print \$NF}')
+                                        echo "  [\$LABEL][\${ELAPSED}s] \${RUNNING}/\${DESIRED} running | \${STATE} | rev: \${REV}"
+                                        [ "\$STATE" = "COMPLETED" ] && [ "\$RUNNING" = "\$DESIRED" ] && break
+                                        [ "\$STATE" = "FAILED"    ] && echo "[\$LABEL] ECS rollback triggered" && exit 1
+                                        sleep 15; ELAPSED=\$((ELAPSED+15))
+                                    done
+                                    [ \$ELAPSED -ge 900 ] && echo "TIMEOUT — \$LABEL did not stabilise" && exit 1
+                                    echo "  [\$LABEL] STABLE — \${RUNNING}/\${DESIRED} running | rev: \${REV}"
+                                """
+                            }
+                        }
+                    }
+                }
+
+            }
+        }
+
+        // ── Stage 5 ───────────────────────────────────────────────────────────
+        stage('Post-Deploy Summary') {
+            steps {
+                script {
+                    docker.image("${TOOLS_IMAGE}").inside(
+                        "--entrypoint='' " +
+                        "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                        "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                        "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                    ) {
+                        sh """
+                            set -e
+
+                            summarise_service() {
+                                LABEL="\$1"
+                                SVC="\$2"
+                                LOG_GROUP="\$3"
+                                CONTAINER="\$4"
+                                OLD_ARN_FILE="\$5"
+                                NEW_ARN_FILE="\$6"
+
+                                OLD_ARN=\$(cat "\$OLD_ARN_FILE" 2>/dev/null || echo "unknown")
+                                NEW_ARN=\$(cat "\$NEW_ARN_FILE" 2>/dev/null || echo "unknown")
+                                OLD_REV=\$(echo "\$OLD_ARN" | awk -F: '{print \$NF}')
+                                NEW_REV=\$(echo "\$NEW_ARN" | awk -F: '{print \$NF}')
+
+                                RUNNING_ARN=\$(aws ecs describe-services \
+                                    --cluster ${ECS_CLUSTER} --services "\$SVC" \
+                                    --region ${AWS_REGION} \
+                                    --query 'services[0].deployments[?status==`PRIMARY`].taskDefinition' \
+                                    --output text)
+                                RUNNING_REV=\$(echo "\$RUNNING_ARN" | awk -F: '{print \$NF}')
+
+                                echo "============================================================"
+                                echo "  WORKER     : \$LABEL"
+                                echo "  last_rev   : \$OLD_REV  (\$OLD_ARN)"
+                                echo "  latest_rev : \$NEW_REV  (\$NEW_ARN)"
+                                echo "  running_rev: \$RUNNING_REV  (\$RUNNING_ARN)"
+
+                                if [ "\$RUNNING_ARN" = "\$NEW_ARN" ]; then
+                                    echo "  status     : OK — running latest_rev"
+                                else
+                                    echo "  status     : MISMATCH — running \$RUNNING_REV, expected \$NEW_REV"
+                                fi
+
+                                echo "------------------------------------------------------------"
+                                echo "  ENV VARS in latest_rev (\$NEW_REV):"
+                                aws ecs describe-task-definition \
+                                    --task-definition "\$NEW_ARN" \
+                                    --region ${AWS_REGION} \
+                                    --query 'taskDefinition.containerDefinitions[0].environment[*].{name:name,value:value}' \
+                                    --output table
+
+                                echo "------------------------------------------------------------"
+                                echo "  LOGS (last 30 lines — first running task):"
+                                TASK_ARNS=\$(aws ecs list-tasks \
+                                    --cluster ${ECS_CLUSTER} --service-name "\$SVC" \
+                                    --region ${AWS_REGION} --query 'taskArns[]' --output text)
+
+                                if [ -z "\$TASK_ARNS" ]; then
+                                    echo "  no running tasks found"
+                                else
+                                    for TASK_ARN in \$TASK_ARNS; do
+                                        TASK_ID=\$(echo "\$TASK_ARN" | awk -F/ '{print \$NF}')
+                                        STREAM="\$CONTAINER/\$CONTAINER/\$TASK_ID"
+                                        echo "  task: \$TASK_ID  stream: \$LOG_GROUP/\$STREAM"
+                                        aws logs get-log-events \
+                                            --log-group-name "\$LOG_GROUP" \
+                                            --log-stream-name "\$STREAM" \
+                                            --region ${AWS_REGION} \
+                                            --limit 30 \
+                                            --query 'events[*].message' \
+                                            --output text || echo "  (no log events yet)"
+                                    done
+                                fi
+                            }
+
+                            summarise_service "rfp-generation"         "${ECS_SERVICE_RFP}"         "${LOG_GROUP_RFP}"         "celery-rfp-generation"         "\${WORKSPACE}/rfp_old_arn.txt"         "\${WORKSPACE}/rfp_new_arn.txt"
+                            summarise_service "incremental"            "${ECS_SERVICE_INCREMENTAL}" "${LOG_GROUP_INCREMENTAL}" "celery-incremental"            "\${WORKSPACE}/incremental_old_arn.txt" "\${WORKSPACE}/incremental_new_arn.txt"
+                            summarise_service "feedback"               "${ECS_SERVICE_FEEDBACK}"    "${LOG_GROUP_FEEDBACK}"    "celery-feedback"               "\${WORKSPACE}/feedback_old_arn.txt"    "\${WORKSPACE}/feedback_new_arn.txt"
+                            summarise_service "source-code-processing" "${ECS_SERVICE_SOURCE_CODE}" "${LOG_GROUP_SOURCE_CODE}" "celery-source-code-processing" "\${WORKSPACE}/source_code_old_arn.txt" "\${WORKSPACE}/source_code_new_arn.txt"
+
+                            echo "============================================================"
+                        """
+                    }
+                }
+            }
+        }
+
+    }
+
+    post {
+        success {
+            script {
+                def rfpOld = ""; def rfpNew = ""
+                def incOld = "";  def incNew = ""
+                def fbkOld = "";  def fbkNew = ""
+                def scOld  = "";  def scNew  = ""
+                try { rfpOld = readFile("${WORKSPACE}/rfp_old_arn.txt").trim()         } catch (e) {}
+                try { rfpNew = readFile("${WORKSPACE}/rfp_new_arn.txt").trim()         } catch (e) {}
+                try { incOld = readFile("${WORKSPACE}/incremental_old_arn.txt").trim() } catch (e) {}
+                try { incNew = readFile("${WORKSPACE}/incremental_new_arn.txt").trim() } catch (e) {}
+                try { fbkOld = readFile("${WORKSPACE}/feedback_old_arn.txt").trim()    } catch (e) {}
+                try { fbkNew = readFile("${WORKSPACE}/feedback_new_arn.txt").trim()    } catch (e) {}
+                try { scOld  = readFile("${WORKSPACE}/source_code_old_arn.txt").trim() } catch (e) {}
+                try { scNew  = readFile("${WORKSPACE}/source_code_new_arn.txt").trim() } catch (e) {}
+
+                echo """
+============================================================
+  CELERY QA DEPLOY SUMMARY — SUCCESS
+  rfp-generation         : ${rfpOld ?: 'unknown'} → ${rfpNew ?: 'unknown'}
+  incremental            : ${incOld ?: 'unknown'} → ${incNew ?: 'unknown'}
+  feedback               : ${fbkOld ?: 'unknown'} → ${fbkNew ?: 'unknown'}
+  source-code-processing : ${scOld  ?: 'unknown'} → ${scNew  ?: 'unknown'}
+============================================================"""
+
+                try { archiveArtifacts artifacts: '/tmp/new_*_taskdef.json', allowEmptyArchive: true } catch (e) {}
+            }
+        }
+        failure {
+            echo "FAILED — check the red stage above. Individual workers may be in rollback (others continue independently)."
+        }
+        cleanup {
+            script {
+                sh """
+                    rm -f "\${WORKSPACE}/rfp_old_arn.txt"         "\${WORKSPACE}/rfp_new_arn.txt"         \
+                          "\${WORKSPACE}/incremental_old_arn.txt"  "\${WORKSPACE}/incremental_new_arn.txt" \
+                          "\${WORKSPACE}/feedback_old_arn.txt"     "\${WORKSPACE}/feedback_new_arn.txt"    \
+                          "\${WORKSPACE}/source_code_old_arn.txt"  "\${WORKSPACE}/source_code_new_arn.txt" \
+                          "\${WORKSPACE}/new_env.json"                                                      \
+                          /tmp/new_rfp_taskdef.json /tmp/new_incremental_taskdef.json                       \
+                          /tmp/new_feedback_taskdef.json /tmp/new_source_code_taskdef.json || true
+                """
+            }
+        }
+    }
+
+}

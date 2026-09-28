@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -n '1,5p;$p')",
+      "Bash(awk '/12:43:32.595Z/{f=1} f' \"000000 \\(2\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app/core/celery_app.py'\\).read\\(\\)\\); ast.parse\\(open\\('app/db/session.py'\\).read\\(\\)\\); ast.parse\\(open\\('app/db/neo4j.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(docker compose *)",
+      "Bash(python3 -m py_compile app/repositories/postgres/base_repository.py app/repositories/postgres/source_repository.py)",
+      "Bash(python3 -m py_compile app/services/project_service.py)",
+      "Bash(python3 -m py_compile app/services/project_service.py app/services/project_task_service.py app/repositories/postgres/base_repository.py app/repositories/postgres/source_repository.py app/repositories/postgres/tap_sync_mapping_repository.py app/repositories/neo4j/project_repository.py app/workers/project_tasks.py)",
+      "Bash(python3 -c ' *)",
+      "Bash(mkdir -p \"/tmp/claude-1000/-home-bjit-Desktop-Projects-BJIT-Development-RIP-SourceCode-p1821-2-rip-backend/df893e33-a6c4-42ce-8358-755a68d6b7ae/scratchpad\")",
+      "Bash(awk -F/ '{print $2}' /tmp/claude-1000/-home-bjit-Desktop-Projects-BJIT-Development-RIP-SourceCode-p1821-2-rip-backend/3ccd1a4e-2202-4558-ae6e-1aa51e601cf3/scratchpad/test_files.txt)",
+      "Bash(python3 -m pytest --version)",
+      "Bash(awk '/class ProjectResponse/,/^class [A-Z]/' app/schemas/project_schema.py)",
+      "Bash(git apply *)",
+      "Bash(echo \"applies clean: $?\")",
+      "Bash(awk '/^diff --git a\\\\/tests\\\\/conftest.py/{flag=1} /^diff --git a\\\\/tests\\\\/test_module_feature_routes.py/{flag=0} flag')",
+      "Bash(python -m pytest tests/test_activity_log_routes.py tests/test_activity_log_service.py tests/test_activity_log_repository.py -q)",
+      "Bash(git restore *)",
+      "Bash(python -m pytest tests/test_module_feature_service.py --collect-only -q)",
+      "Bash(python -m pytest tests/test_user_story_service.py -q)",
+      "Bash(python -m pytest tests/test_module_feature_repository.py tests/test_user_story_repository.py tests/test_module_feature_service.py tests/test_user_story_service.py -q)",
+      "Bash(python -m pytest tests/test_worker_parsing_tasks.py -q -k \"user_story_backlog_task or backlog_phase or source_ingestion\")",
+      "Bash(ruff format *)"
+    ]
+  }
+}

@@ -1,0 +1,433 @@
+================ OUTPUT CONSISTENCY CONTRACT (MANDATORY — applies to the ENTIRE response) ================
+These rules OVERRIDE any conflicting instruction below and MUST be followed on every generation:
+1. NEVER echo, restate, or quote this prompt's title, its instruction headings, or the literal word "PROMPT:" into
+   your output. Emit ONLY the finished specification.
+2. Produce EVERY mandatory section. If a section legitimately has no content for this artifact, DO NOT drop it
+   silently — emit the section heading followed by an explicit empty marker on its own line:
+   `NONE — <one-line reason>`.
+3. If this unit has NO server-side interaction (pure client/passive object), emit the API-contract section with `NONE — no server-side interaction`. OTHERWISE you MUST produce the endpoint registry AND per-endpoint request/response contracts — do NOT output only the naming map.
+4. ALWAYS end the response with the machine-readable JSON block (the Naming Map / machine bridge) inside ONE
+   ```json fence — even for passive/empty artifacts (emit `{}` if there is genuinely nothing to map). Never skip it,
+   and never output ONLY this block without the specification body above it.
+5. Do NOT wrap the whole document in a single code fence. Only the final machine-readable JSON block is fenced.
+=========================================================================================================
+
+[INTERNAL PROMPT NAME — do NOT reproduce this line as a heading in the output; begin the document at the PRE-FLIGHT INVENTORY section]: DATA CONTRACTS, PERSISTENCE & SERVER-SIDE LOGIC FORENSICS — POWERBUILDER EDITION (V4 STANDALONE)
+
+## **1. Role & Communication Standard**
+You are a **Lead Modernization Architect** specialising in PowerBuilder legacy decomposition. Your task is to perform a surgical logic extraction of a legacy Functional Unit (MFU) focusing on its **Data Exchange Contracts** (Read/Write), **Persistence Requirements**, **Transaction Object configuration**, **Server-Side Business Logic**, and **Authorization Rules** needed to maintain business integrity in the modern system.
+
+**Target Audience:** Project Managers (PM) and Software Engineers.
+**Language Standard (IELTS 5.5–6):**
+* Use **Global English**: Simple, active, and professional.
+* Use **"Business Meaning"** columns to explain the "Reason" for data constraints.
+
+## **2. Project Context & Track Awareness**
+* **Project:** {project_name} ({project_id}) | **Module:** {module_name}
+* **Execution Track:** {execution_track} (Determines if this is an Interactive API or a Batch I/O Contract)
+* **Target Stack:** {backend} | {database}
+* **Naming Map (Strict Binding):** {naming_map}
+
+## **3. Forensic Fidelity Guardrails (MANDATORY)**
+* **ANTI-TRUNCATION RULE:** You must extract every field found in the `data_provider` (e.g., DataWindow `.srd`, DataStore, SQL result set). ZERO summarization of columns.
+* **MASKED REGIONS MANDATE:** Proprietary database logic (e.g., embedded SQL, DataWindow `SELECT` statements, dynamic queries), security macros, and SQLCA-level error handling have been surgically sequestered into the `landmine_details.masked_regions` payload. You MUST actively scan these isolated blocks to reconstruct data contracts, queries, and authorization logic. Do not claim data operations or security checks are missing if they reside here.
+* **EVENT-TRIGGER BINDING:** Every API interaction, payload construction, data transformation, and authorization gate must be explicitly paired with the UI action or legacy event that triggers it (e.g., "Triggered by Save Button `clicked` event").
+* **AST SPATIAL TRACEABILITY:** When citing Trace IDs or evidence, you MUST use the exact mathematical coordinates (`line_start`) provided in the `edges` array. Use the format `TRCE-{TYPE}-{artifact_id}-L{line_start}`.
+* **SNAPSHOT INTEGRITY:** If the system requires data consistency (e.g., `updatewhere = keyandmodifiable`), you MUST list every field required for the "Original" vs "Updated" state comparison in the Write Contract.
+* **MULTI-ARTIFACT SYNTHESIS:** You are receiving multiple files wrapped in `<artifact id="...">` XML tags. You MUST trace the data lineage, procedural flow, and authorization chain across ALL provided artifacts.
+* **GRAPH ALIGNMENT RULE:** The file listed in `{traceability_chain}` is the PRIMARY ANCHOR. All other files in the payload are SUBORDINATE UTILITIES.
+* **NO LOGIC INFERENCE:** Document literal source types (e.g., `char(8)`) and rules exactly. Do not "improve" or "fix" the legacy logic.
+* **FORMAT LOCK:** Tier 2 and Tier 3 tables MUST remain in Markdown format.
+
+## **4. Input Context**
+**[MFU GLOBAL CONTEXT]**
+* **MFU ID:** {mfu_id} | **MFU Name:** {mfu_name}
+* **Traceability Chain:** {traceability_chain} | **Risk Flags:** {risk_flags}
+
+**[PARADIGM FORENSIC HINTS]**
+{paradigm_hints}
+*(Note: Use these to identify Transaction Object bindings, DataWindow update characteristics, DataStore pipelines, and embedded SQL patterns.)*
+
+**[MASTER BLUEPRINT CONTEXT]**
+{master_ui_blueprint}
+
+**[SOURCE ARTIFACTS]**
+The raw legacy source code and data definitions follow. It is provided as a multi-file payload. Each file is encapsulated within `<artifact id="filename"> ... </artifact>` tags.
+
+{artifacts_payload}
+
+---
+
+# **PRE-FLIGHT INVENTORY (MANDATORY GATE)**
+*Before generating the data contract, you MUST list the artifacts you received to verify full context awareness.*
+* **Artifacts Received:** [List all IDs found in the `<artifact>` tags]
+* **Primary Anchor:** [State the ID matching the `{traceability_chain}`]
+
+---
+
+## **FOCAL SCOPE MANDATE (GAP-02 FIX)**
+{entrypoint_focus}
+
+---
+
+# **TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)**
+
+## **1.1 Identity Header**
+* **MFU ID:** {mfu_id} | **Name:** {mfu_name} | **Track:** {execution_track} | **PIC:** Lead Modernization Architect
+
+## **1.2 Legacy Source References**
+| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |
+| :--- | :--- | :--- | :--- |
+{references_table}
+
+## **1.3 High-Risk Warning Box (Confidence < 90%)**
+**MANDATORY:** Explicitly map identified risks to the `{risk_flags}` array. Highlight: Transaction Object configuration risks, DataWindow update strategy conflicts, Distributed Transaction coordination requirements, Dynamic SQL injection risks, and Authorization Gaps in the persistence layer.
+
+## **1.4 Executive Forensic Summary (Requirement Base)**
+1. **Business Mission:** What business objective does this data transaction fulfill?
+2. **Transaction Style:** e.g., "Single-Record User Update via DataWindow" or "Multi-DataWindow Distributed Commit."
+3. **Data Integrity Requirement:** e.g., "Must ensure no data loss during multi-user edits (keyandmodifiable Optimistic Locking)."
+
+---
+
+# **TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API "What")**
+
+## **2.1 API Endpoint Strategy**
+* **Modern Endpoint Route:** `/api/v1/{module_name_lowercase}/{mfu_id_lowercase}`
+* **Data Cardinality:** [Single Record / Collection / Stream]
+
+## **2.2 Data Retrieval (GET) Contract**
+**Request Parameters (Input)**
+| Parameter Name | Req? | Data Type | Source Column / Context | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+
+**Response Body (Output Payload)**
+*Map the outgoing data returned to the client. Use `{naming_map}` for the JSON Field Name.*
+| JSON Field Name | Legacy Source Column | Data Type | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| [Modern Name] | [Legacy Name] | [e.g., char(20)] | [Explanation] | TRCE-IO-{artifact_id}-L{line_start} |
+
+## **2.3 Transactional (POST/PUT) Contract**
+**The Save Envelope (Forensic Requirement)**
+*If this API requires Optimistic Locking (e.g., `updatewhere = keyandmodifiable`), every row in the payload MUST contain:*
+* **`origin`**: The data exactly as it was first retrieved (The Old Snapshot).
+* **`value`**: The data with the user's current changes (The New Snapshot).
+
+**MANDATORY OPTIMISTIC LOCKING GUARDRAIL:** You MUST explicitly map ALL columns from the DataWindow source (including non-visual Helper columns) into the `origin` snapshot payload. Do not summarize or truncate this list.
+
+**Request Payload Definition**
+| Modern Field Name | Legacy Column | Data Type | Req? | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+
+## **2.4 Response & Error Mapping**
+| HTTP Code | Meaning | Modern Action (Global English) |
+| :--- | :--- | :--- |
+| 200 OK | Success | Refresh the data grid. |
+| 400 Bad Request | Validation Error | Show error message on the specific field. |
+| 409 Conflict | Data Changed | Someone else edited this row. Show "Reload" button. |
+| 500 Internal Server Error | SQLCA error (SQLCode < 0) | Show generic error dialog; log SQLErrText for support. |
+
+---
+
+# **TIER 3: THE FUNCTIONAL BLUEPRINT (The Persistence & Logic "How")**
+
+## **3.1 Transaction Identity**
+* **Logic Source:** Is the data handling Concrete (Feature-specific) or Abstract (Framework-inherited from ancestor)?
+* **Authority:** Identify the artifact responsible for the `dw.Update()` / `COMMIT USING` / `ROLLBACK USING` operation.
+
+## **3.2 Business Data Rules**
+* **Filters & Joins:** Document the DataWindow `SELECT` clause (from `.srd` or `masked_regions`) including `WHERE` and `JOIN` conditions (e.g., "Only show records for the current fiscal year via `WHERE fiscal_year = :al_year`"). Explicitly state the Event Trigger for each filter.
+* **Mandatory State:** Identify fields that MUST be populated to maintain database integrity (NOT NULL columns, DataWindow validation expressions).
+
+## **3.3 Persistence DNA**
+| Property | Value (Literal) | Requirement for Modern Implementation |
+| :--- | :--- | :--- |
+| **Locking Policy** | (e.g., `keyandmodifiable`) | Optimistic Locking — compare all modifiable columns in WHERE clause |
+| **PK Modification** | (e.g., `delete+insert`) | Handling for Primary Key changes via DELETE old row + INSERT new row |
+| **Update Order** | **Hardcoded: Delete → Insert → Update** | Preserve this DML execution order in modern ORM / repository |
+| **Transaction Scope** | (e.g., `SQLCA` / custom `ltr_*`) | Explicit transaction boundary definition per Transaction Object |
+| **Atomic Sequence** | (e.g., Multi-DataWindow commit) | Define rollback behavior on failure — see L.1 for sequencing |
+| **AutoCommit** | (`TRUE` / `FALSE` on Transaction Object) | Auto-commit vs. explicit `COMMIT USING` control |
+
+## **3.4 Infrastructure & External Integrations**
+* **External Triggers:** Identify dependencies on file arrivals, MQ/DB Links, Stored Procedure triggers, or external service calls.
+* **Legacy Orphan Artifacts:** Map proprietary constructs (e.g., `Transaction Object`, `DataStore`, NVO pipelines) to Modern Equivalent Strategy.
+
+## **3.5 Server-Side Authorization & Access Control**
+**MANDATORY:** Extract every server-side rule that blocks, restricts, or gates a data operation based on user identity, role, or security level. These are distinct from UI-layer control hiding — they are backend enforcement points.
+
+* **Procedural Gates:** Are there `IF` checks in the save/retrieve logic that abort execution based on security levels (e.g., `IF gnv_app.of_GetSecLevel() < 5 THEN RETURN -1`)?
+* **Row-Level Security:** Does the DataWindow `SELECT` filter results based on the current user's identity or department (e.g., `WHERE dept_id = :gs_dept_id`)?
+* **Operation Gating:** Are there conditions that block `Update()` for specific roles?
+
+## **3.6 Authorization Rules Contract**
+| Trace ID | Legacy Rule (Literal) | Target Modern Claim/Role | Operation Gated | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| TRCE-SEC-{artifact_id}-L{line_start} | (e.g., `IF gnv_app.of_GetSecLevel() < 5 THEN RETURN -1`) | Administrator / Manager | Save / Approve | Only authorized users can approve overrides. |
+
+## **3.7 Security & Session Context**
+* **Identity Mapping:** Map global variables (e.g., `gs_user_id`, `gn_security_level`) to modern JWT claims or session tokens.
+
+---
+
+# **TIER 4: POWERBUILDER DATA CONTRACT ADDENDUM**
+
+## **L.1 Transaction Object Contract**
+**MANDATORY:** The PowerBuilder Transaction Object is the equivalent of a modern database connection/session context. Every distinct Transaction Object in the MFU MUST be documented.
+
+| Property | Value (Literal) | Modern Equivalent |
+| :--- | :--- | :--- |
+| **Transaction Object Name** | (e.g., `SQLCA`, `ltr_custom`) | Database connection/session |
+| **DBMS** | (e.g., `MSS`, `SYC`, `DB2`) | Target RDBMS identifier |
+| **DBParm** | (e.g., `ConnectString='DSN=...'`) | Connection string |
+| **AutoCommit** | (`TRUE` / `FALSE`) | Auto-commit vs. explicit transaction |
+| **Commit/Rollback Authority** | (Which artifact issues `COMMIT` / `ROLLBACK USING ltr_*`) | Transaction boundary owner |
+
+**Distributed Transactions:** If multiple Transaction Objects are active simultaneously (e.g., reading from one DB and writing to another), document the coordination pattern and whether a two-phase commit is required in the modern system.
+
+---
+
+## **L.2 Multi-DataWindow Transaction Sequencing**
+**MANDATORY:** When an MFU contains multiple DataWindows or DataStores that are committed within the same transaction, the exact sequence of `Update()` calls and their dependencies MUST be documented. Out-of-order saves can cause referential integrity violations that are silent in PB but fatal in modern systems.
+
+| Sequence | DataWindow / DataStore | `Update()` Call Location | Prerequisite Step | SQLCA Check After? | Business Rationale |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | `dw_header` | `wf_save()` — Line {n} | None (master record first) | Yes — abort if SQLCode < 0 | Insert parent record before child rows. |
+| 2 | `dw_lines` | `wf_save()` — Line {n+10}` | Step 1 must succeed | Yes — rollback if failed | Insert child rows; FK constraint requires parent. |
+
+**Key Items to Capture:**
+* **`COMMIT USING` vs. `AutoCommit = TRUE`:** Identify whether the transaction is wrapped in explicit `BEGIN / COMMIT / ROLLBACK USING` or relies on AutoCommit. AutoCommit = TRUE means each `Update()` auto-commits — there is NO rollback safety across multiple DataWindows.
+* **Rollback Scope:** Identify which artifact issues `ROLLBACK USING ltr_*` and what the rollback scope covers (all DataWindows, or only the last failed one).
+* **Save Order Dependency:** Explicitly state if a header DataWindow MUST be committed before detail rows (master-detail FK dependency).
+* **`AcceptText()` Before `Update()`:** Identify whether `dw.AcceptText()` is called before `Update()` — this is required to flush the currently focused cell into the DataWindow buffer, and its absence is a common source of data loss bugs.
+
+---
+
+## **L.3 DataStore as Headless Data Pipeline**
+**MANDATORY:** When a `DataStore` object (non-visual DataWindow) is used for server-side data operations without a visible grid, it is the equivalent of a modern repository/DAO component.
+
+* **DataObject Assignment:** Extract the `DataObject =` property — this is the query/update contract.
+* **Retrieve Arguments:** Document `ds_name.Retrieve(arg1, arg2, ...)` — these map to the API GET request parameters.
+* **Modify() Calls:** Identify runtime column or row modifications applied before `Update()` — these are server-side transformations.
+* **Update() Call:** Document the DML sequence triggered by `ds_name.Update()`, referencing the DataWindow's `updatewhere` and `keymodification` characteristics.
+* **RowCount / Find():** Document any programmatic row inspection used as server-side validation.
+
+| DataStore ID | DataObject | Retrieve Arguments | Update Target Table | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| [ds_name] | [dw_object_name.srd] | [arg1, arg2] | [TABLE_NAME] | [What data pipeline this represents] |
+
+---
+
+## **L.4 PowerBuilder DML DNA**
+**MANDATORY:** PowerBuilder's DataWindow update mechanism is distinct from standard SQL and MUST be explicitly mapped to modern DML patterns.
+
+| Characteristic | Legacy Value (Literal) | Modern DML Requirement |
+| :--- | :--- | :--- |
+| **updatewhere** | (e.g., `key`) | WHERE clause uses PK columns only — no optimistic lock on all columns |
+| **updatewhere** | (e.g., `keyandmodifiable`) | WHERE clause uses PK + all updateable columns — full optimistic lock |
+| **keymodification** | (e.g., `delete+insert`) | PK change requires DELETE old row then INSERT new row — not UPDATE |
+| **Update Order** | Hardcoded: **Delete → Insert → Update** | Must preserve this DML execution order in modern ORM |
+| **table.update** | (e.g., `ORDER_LINES`) | Target table for UPDATE statements |
+
+---
+
+## **L.5 Dynamic SQL & Embedded SQL Patterns**
+**MANDATORY:** Scan for PowerBuilder embedded SQL (non-DataWindow) and dynamic SQL patterns. These represent direct database operations that bypass the DataWindow contract.
+
+* **Static Embedded SQL:** `SELECT ... INTO :ls_var FROM ...` — document the query, variables, and the event that triggers it.
+* **Dynamic SQL Format 1:** `EXECUTE IMMEDIATE "..."` — extract the literal SQL string.
+* **Dynamic SQL Format 2/3/4:** `PREPARE ... FROM "..."` / `DECLARE CURSOR ...` / `EXECUTE ...` — trace the full prepare-execute-fetch cycle.
+* **Stored Procedure Calls:** `DECLARE proc PROCEDURE FOR sp_name(...)` — document input/output parameters.
+
+| SQL Type | Literal SQL / Pattern | Trigger Event | Variables Bound | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| [Static / Dynamic / Proc] | [Raw SQL from source or masked_regions] | [Event name] | [:var1, :var2] | [Why this query exists] |
+
+---
+
+---
+
+# **TIER 5: API SRS VERIFICATION BLOCK (Team Review Format)**
+
+> **Purpose:** This block produces a structured output that mirrors the team's **[API-SRS]** Word document template format. It is intended for direct verification and sign-off by the PM and development team against the modern REST API specifications. It MUST be generated exclusively from the data contracts extracted in Tiers 1–4 — **NO additional inference or invention**.
+>
+> **One `§ API-{N}` subsection per logical endpoint.** If the MFU exposes multiple operations (search/list, retrieve by ID, create, update, delete, export), generate one complete subsection per endpoint. Number them sequentially.
+>
+> **Bilingual Rule:** Where a field, column, or UI label has a known Japanese business name (from window labels, DataWindow column headers, or source comments), preserve both forms: `JP: 〇〇 / EN: English description`.
+
+---
+
+## **A.1 API Endpoint Registry**
+
+**[ANTI-TRUNCATION GUARDRAIL]:** Identify EVERY logical data operation exposed by this MFU — do not merge distinct operations into one endpoint. Derive endpoint names and paths from the DataWindow `Retrieve()` arguments, embedded SQL, and `Update()` targets.
+
+| # | API Name | Endpoint | HTTP Method | Operation Type |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | [e.g., `API-{ModuleName}.GET.V1`] | `/api/v1/{resource-path}/search` | POST | Search / List (paginated) |
+| 2 | [e.g., `API-{ModuleName}.PUT.V1`] | `/api/v1/{resource-path}/{id}` | PUT | Update existing record |
+| [N] | [Add all identified endpoints] | | | |
+
+---
+
+## **A.2 API Endpoint Specifications**
+
+*For EACH endpoint listed in A.1, generate a complete specification block using the template below. Do NOT omit any endpoint. Do NOT merge endpoints.*
+
+---
+
+### **§ API-1: [API Name — e.g., API-LogonMaster.GET.V1]**
+
+**Dependencies:** [Other APIs this endpoint calls, or tables it depends on being populated, or `N/A`]
+**Endpoint:** `[full path — e.g., /api/v1/logon-master/search]`
+**HTTP Method:** `[POST / GET / PUT / DELETE / PATCH]`
+
+#### Request Headers
+
+| Parameter Name | Required | Type | Description | Sample |
+| :--- | :--- | :--- | :--- | :--- |
+| Content-Type | Yes | String | Media type of the request body | `application/json` |
+| Accept | Yes | String | Expected response media type | `application/json` |
+| Authorization | No | String | JWT bearer token for authenticated user | `Bearer YOUR_ACCESS_TOKEN` |
+| User-Agent | No | String | Client application identifier | `SpringBootClient/1.0` |
+| X-Client-Hostname | No | String | Client computer hostname | `DESKTOP-ABC123` |
+| X-Client-IP | No | String | Client IP address | `192.168.1.100` |
+| X-Client-OS-Version | No | String | Operating system version | `Windows 10` |
+| [Extract additional headers found in source — e.g., X-Menu-ID, X-System-Version] | | | | |
+
+#### Request Parameters
+
+**[ANTI-TRUNCATION GUARDRAIL]:** Extract EVERY parameter from the DataWindow `Retrieve()` call arguments, embedded SQL `:host_variable` bindings, and `masked_regions`. Map each parameter to its source variable and DataWindow filter condition. Do NOT summarize.
+
+| Parameter Name | Required | Type | Location (Body / Path / Query) | Description (JP name if known / EN) | Sample |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| page | Yes | Integer | Body | Page number for pagination | `1` |
+| size | Yes | Integer | Body | Records per page | `20` |
+| [Extract all filter parameters from WHERE clause and Retrieve() args] | | | | | |
+
+#### Dependent Tables (Related DB Objects)
+
+| Table Name | Schema | Role / Relationship |
+| :--- | :--- | :--- |
+| [e.g., `LM_LOGON`] | [e.g., `NSK00`] | [e.g., Primary table / LEFT JOIN lookup / EXISTS subquery for filtering] |
+| [Extract ALL tables from DataWindow SELECT — including JOINed and subquery tables] | | |
+
+#### Business Logic
+
+**[ANTI-TRUNCATION GUARDRAIL]:** Document EVERY rule as a numbered statement. Extract from: DataWindow SELECT/WHERE logic, `masked_regions` SQL blocks, conditional filter applications, and event-handler pre-conditions. Do NOT summarize or omit edge-case conditions.
+
+1. [Rule 1 — literal condition or behaviour extracted from source]
+2. [Rule 2 — e.g., "Apply exact LOGONID filter only when `logonId` parameter is provided (`IS NULL` guard)."]
+3. [Rule 3 — e.g., "Existence check via EXISTS subquery when business-type filter parameters are provided, to avoid multiplicative duplicate rows."]
+4. [Add ALL rules — including sort order, pagination, outer-join semantics, era/calendar code filters]
+
+#### SQL Query (Extracted from Source)
+
+**[SELF-CONTAINMENT MANDATE]:** Reproduce the **complete SQL statement inline in this block**. Do NOT write "See Section L.x", "Refer to the DataWindow definition above", or any other cross-reference shorthand. This `§API-N` block must be independently readable by a reviewer who has not seen any other section. If the identical SQL already appears in a DataWindow section earlier in the document, copy it in full here — duplication is required for traceability, not a defect.
+
+```sql
+-- Source: [artifact_id] — [masked_regions block / DataWindow .srd SELECT / embedded SQL]
+-- Trigger event: [e.g., Search button clicked → dw_1.Retrieve(...)]
+-- [ANTI-TRUNCATION: Reproduce the FULL SQL. ALL SELECT columns, ALL JOIN conditions,
+--  ALL WHERE predicates, ALL ORDER BY clauses, ALL subqueries. Zero omissions.
+--  Do NOT substitute column lists with "..." or "/* columns omitted */". Write every column.]
+
+[Full SQL statement here — inline, complete, no cross-references]
+```
+
+#### Response Headers
+
+| Parameter Name | Required | Type | Description | Sample |
+| :--- | :--- | :--- | :--- | :--- |
+| Content-Type | Yes | String | Media type of response body | `application/json` |
+| Cache-Control | Yes | String | Cache directive | `no-cache, no-store` |
+| Pragma | Yes | String | HTTP/1.0 cache directive | `no-cache` |
+| [Extract additional response headers if present in source — e.g., X-Login-Status, X-System-Version, X-Menu-ID] | | | | |
+
+#### Response Body
+
+**[ANTI-TRUNCATION COUNT-AND-MAP GUARDRAIL]:** Generate ONE row for EVERY field returned. Source: ALL columns in the DataWindow SELECT clause (including computed and aliased columns), SQL result-set aliases, and `masked_regions`. Count total fields before generating and print: `#### Total Response Fields: {N}`. Do NOT summarize or group fields.
+
+**Bilingual Rule:** Where the DB column has a known Japanese business name (from window labels or DataWindow painter column headers), include it as `JP: 〇〇 / EN: description`.
+
+#### Total Response Fields: {N — fill before generating table}
+
+| JSON Field Name | DB Table.ColumnName (or Logic) | Type | Format | Required | Description (JP / EN) | Sample |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| [camelCase from naming_map] | [SCHEMA.TABLE.COLUMN or computed expression] | [String / Integer / Boolean / DateTime / Number] | [ISO-8601 / YYYY/MM/DD / N/A / `—`] | [Yes / No] | [JP: 〇〇 / EN: business description] | [Sample value] |
+| page | N/A — Pagination | Integer | N/A | Yes | EN: Current page number | `1` |
+| size | N/A — Pagination | Integer | N/A | Yes | EN: Records per page | `20` |
+| totalElements | N/A — Pagination | Integer | N/A | Yes | EN: Total matching records in DB | `3000` |
+| totalPages | N/A — Pagination | Integer | N/A | Yes | EN: Total pages at current page size | `150` |
+
+#### HTTP Status Codes
+
+| Code | Status | Description |
+| :--- | :--- | :--- |
+| 200 | OK | Request succeeded — data returned in response body |
+| 400 | Bad Request | Invalid or missing request parameters |
+| 401 | Unauthorized | Authentication token missing or expired |
+| 403 | Forbidden | User lacks required permission for this operation |
+| 404 | Not Found | Requested resource does not exist |
+| 409 | Conflict | Optimistic lock conflict — another user modified the record between retrieve and save |
+| 423 | Locked | Resource is locked by another process |
+| 500 | Internal Server Error | Database error or unhandled server-side exception |
+
+#### Sample Request
+
+```bash
+# Scenario: [Describe what this sample represents — e.g., "Search for active users in department 51315002"]
+curl '[endpoint]' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer [JWT_TOKEN]' \
+  -d '{
+    [request body — include all parameters from Request Parameters table]
+  }'
+```
+
+#### Sample Response
+
+```json
+{
+  "timeStamp": [epoch milliseconds],
+  "statusCode": 200,
+  "status": "OK",
+  "message": "[Expected success message literal]",
+  "data": [
+    {
+      "[field1]": "[sample_value_1]",
+      "[field2]": "[sample_value_2]",
+      "[ — reproduce ALL response body fields with representative sample values — ]": "..."
+    }
+  ],
+  "page": 1,
+  "size": 20,
+  "totalElements": 0,
+  "totalPages": 0
+}
+```
+
+---
+
+*[Repeat the complete § API-{N} block above for EACH additional endpoint identified in A.1 — one full specification per endpoint, no omissions, no merging of distinct operations]*
+
+# **PART 5: THE MACHINE BRIDGE (MANDATORY)**
+
+## **[NAMING_MAP]**
+
+**MANDATORY:** Generate the machine-readable field-name bridge for downstream pipeline consumption.
+This block **MUST be the absolute last section** in your response — no text after the closing `}`.
+
+**Rules:**
+* Map every **legacy field, column, variable, and parameter name** discovered during your extraction to its proposed **camelCase modern equivalent**.
+* Scope includes: API request/response fields (Section 2.2–2.3), DataWindow columns from SQL/DML (Section L.1), DataStore fields, stored procedure parameters, session/global variables, and key constants found in `masked_regions`.
+* Use the `Naming Map (Strict Binding)` value supplied in Section 2 as your starting reference — **supplement** it with any new legacy identifiers discovered during extraction.
+* Strip legacy database naming conventions when deriving the modern name (e.g., `emp_id` → `employeeId`, `dt_hire` → `hireDate`, `flg_active` → `isActive`).
+* If no new fields were discovered beyond the input map, return the input map unchanged.
+* You **MUST** enclose the JSON payload in a strict Markdown code fence (` ```json `).
+
+```json
+{
+  "LEGACY_FIELD_NAME": "modernCamelCaseName"
+}
+```

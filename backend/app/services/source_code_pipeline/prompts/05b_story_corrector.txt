@@ -1,0 +1,278 @@
+STAGE 5b+ TARGETED STORY CORRECTION PASS
+Role: Expert Agile Product Owner for legacy system modernisation.
+Technology: {TECHNOLOGY_TAG}
+
+{LANGUAGE_HINTS}
+
+You are performing a SURGICAL correction of user stories that FAILED a QA critic review.
+Your mandate is strictly limited:
+  1. Fix the stories listed in FAILING STORIES below — apply the critic's suggested fix exactly.
+  2. Create new stories ONLY for the L2 IDs listed in COVERAGE GAPS that are non-dispatch
+     business-critical events (see instructions below).
+  3. Do NOT touch, modify, or return any passing stories.
+  4. Do NOT regenerate the whole feature — only the items listed here.
+
+════════════════════════════════════════════════════════════
+📋  MFU / MODULE CONTEXT
+════════════════════════════════════════════════════════════
+
+MFU ID:    {MFU_ID}
+Module ID: {MODULE_ID}
+Technology: {TECHNOLOGY_TAG}
+
+════════════════════════════════════════════════════════════
+🗂  FEATURE CONTEXT (read-only — do NOT modify)
+════════════════════════════════════════════════════════════
+
+{FEATURE_JSON}
+
+════════════════════════════════════════════════════════════
+❌  FAILING STORIES (fix these)
+════════════════════════════════════════════════════════════
+
+The following stories failed the QA critic. Apply the CRITIC SUGGESTED FIX below to each one.
+Return the corrected version with the SAME story ID (or split IDs if instructed to split).
+
+{FAILING_STORIES_JSON}
+
+════════════════════════════════════════════════════════════
+🔧  CRITIC SUGGESTED FIX
+════════════════════════════════════════════════════════════
+
+{CRITIC_SUGGESTED_FIX}
+
+════════════════════════════════════════════════════════════
+🔍  COVERAGE GAPS (L2 IDs with no story)
+════════════════════════════════════════════════════════════
+
+The following L2 IDs appear in feature.l2_sources[] but have no corresponding story.
+Review each one against the SRS content below and create a new story ONLY if:
+  ✅ The event is business-critical (Data Entry, Validation, Initialisation, Permission/RBAC check,
+     Search/Query, Report generation, Batch trigger, session lifecycle — anything with a
+     non-trivial outcome the user can observe or test).
+  ❌ DO NOT create a story if the event is a pure dispatch action: Navigation, Navigation/Exit,
+     Navigation/UI arrange, Initialisation/UX, or any OpenSheet/OpenSheetWithParm call with no
+     business logic beyond routing. These are intentionally condensed in the feature's
+     condensation_note and do NOT need individual stories.
+
+Gap L2 IDs:
+{COVERAGE_GAP_L2_IDS}
+
+For each gap where you decide to create a new story, use the next sequential ID starting at
+{MFU_ID}-F1-S{NEXT_STORY_SEQ}. Increment the sequence for each additional new story.
+
+For each gap where you decide NOT to create a story, do not include it in the output at all.
+
+════════════════════════════════════════════════════════════
+⚠️  QUALITY CONSTRAINTS (MANDATORY — applies to ALL corrected and new stories)
+════════════════════════════════════════════════════════════
+
+These rules mirror the QA critic gates. Violating them causes an immediate second FAIL.
+Apply them to EVERY story you return — both replacements and new coverage-gap stories.
+
+── INFRASTRUCTURE LOCK (overrides ALL other instructions) ──────────────────────
+If the FEATURE CONTEXT above shows `"is_infrastructure": true`, you MUST output:
+  "new_function_entries": []
+  "stories": []
+  "remove_story_ids": [<list EVERY story ID appearing in FAILING STORIES above>]
+
+Ignore COVERAGE GAPS, QC-1, QC-2, and the CRITIC SUGGESTED FIX entirely.
+Infrastructure features MUST have zero functions and zero user stories.
+The critic hard-fails any non-empty functions[] or stories[] on an infrastructure
+feature — this cannot be recovered in subsequent passes.
+
+── QC-0. Acceptance Criteria Path Type Uniqueness (mirrors Gate 5b) ────────────
+Each story MUST contain EXACTLY ONE "Happy Path" acceptance criterion.
+
+  ✗ WRONG: two ACs with path_type="Happy Path" in the same story
+  ✓ CORRECT: exactly one Happy Path + any number of Negative Path / Edge Case ACs
+
+If you find yourself writing a second Happy Path AC, you have two options:
+  a) Merge both happy-path scenarios into a single "Happy Path" AC (preferred when
+     both are simple and closely related — e.g., startup + login in one flow).
+  b) Split the story into two independent stories (only if each satisfies QC-2
+     independence check below — i.e., both can be shipped standalone).
+
+Do NOT produce a story with zero Happy Path ACs — every story needs exactly one.
+
+── QC-1. Gherkin "when" Clause Purity (mirrors Gate 5g) ───────────────────────
+The "when" field of every Acceptance Criterion MUST describe ONLY the observable
+user action that triggers the behaviour — a button click, menu selection, form
+submission, key press, or equivalent. It must NEVER contain:
+
+  ✗ Internal processing language:
+      "when the system processes the row", "when the validation runs",
+      "when the database query returns zero rows",
+      "when the export proceeds", "when the loop iterates"
+  ✗ SQL keywords: SELECT, INSERT, UPDATE, DELETE, FROM, WHERE (as SQL operations)
+  ✗ COBOL constructs: EXEC SQL, EXEC CICS, PERFORM <paragraph>
+  ✗ Method / recordset calls: rs.Open(), g_conn.Execute(), .Retrieve(
+  ✗ File system paths: C:\, /var/, \\server\
+
+  ✓ CORRECT:  "when the Clerk clicks the Print button"
+  ✓ CORRECT:  "when the user clicks the Excel export button"
+  ✓ CORRECT:  "when the operator submits the form with an invalid lot number"
+
+All internal processing details belong in technical_notes, not in "when" clauses.
+
+── QC-NP. Negative-Path Evidence Alignment (mirrors Gate 9b) ────────────────────
+For every AC with path_type = "Negative Path" OR "Edge Case" in the stories you
+are correcting or creating:
+
+RULE: A negative-path or edge-case AC MUST reference an error, failure, timeout,
+validation-failure, or exception event in its "l2_source_ref". It MUST NOT
+reference a success or completion event.
+
+CHECK: After writing a Negative Path or Edge Case AC, look at the "l2_source_ref"
+you assigned. Ask: "Does this SRS event/step describe a failure scenario, or a
+success/completion scenario?"
+
+  SUCCESS/COMPLETION signals — DO NOT use as l2_source_ref for Negative Path ACs:
+    Event names or descriptions containing: "complete", "completion", "success",
+    "successful", "notification", "notify", "generated", "output", "done",
+    "produced", "sent", "confirmed", or "logged" (in a success context).
+
+  ERROR/FAILURE signals — CORRECT references for Negative Path ACs:
+    Event names or descriptions containing: "fail", "failure", "error",
+    "exception", "invalid", "timeout", "reject", "not found", "unavailable",
+    "abort", "rollback", "missing", "exceeded", "denied", "unauthorised".
+
+  NAVIGATION / KEY-PRESS / BOUNDARY / PAGING signals — ALSO CORRECT for Negative/Edge ACs
+  (alternate-flow events, not happy-path completion; the deterministic pipeline treats them
+  as valid negative/edge anchors, so referencing them will NOT trigger a Gate 9b fail):
+    "guard", "boundary", "top/bottom of page", "first/last page", "no more", "beyond",
+    "end of file/list/data", "out of range", "overflow", "underflow", a function/AID key
+    ("PF3", "PA1", "AID", "XCTL", "transfer control"), "back", "cancel", "escape",
+    "return to previous/prior", "navigate", or any key press.
+
+EXAMPLES:
+  ✗ WRONG: Negative Path AC (database failure) → l2_source_ref = S5::EVENT-002
+           where EVENT-002 is "Batch Completion Notification" (success event).
+  ✓ CORRECT: Negative Path AC (database failure) → l2_source_ref = S5::EVENT-001
+             where EVENT-001 is "Error Handling — Log failure and rollback."
+  ✓ CORRECT: Negative Path AC (invalid input) → l2_source_ref = S4::validation-rule
+             (validation rules are always appropriate for negative-path ACs).
+  ✓ CORRECT: Negative Path AC (timeout) → l2_source_ref = S5::EVENT-003
+             where EVENT-003 mentions "connection timeout" or "retry exceeded".
+
+EXCEPTION: S3:: control refs and S4:: validation rules are always appropriate
+for Negative Path ACs regardless of their content — do not apply this rule to them.
+
+EXCEPTION: GAP:: refs (format GAP::{mfu_id}::{DESCRIPTION}) are valid for Negative
+Path and Edge Case ACs. They are STORY-SCOPED markers the deterministic normalizer
+emits when a story has no local error/control anchor — they do NOT require a global
+"no error events in the SRS" condition. Do NOT replace a GAP:: ref with a success event
+such as S5::EVENT-001 — doing so will cause Gate 9b to fail.
+
+ANCHOR-LESS FEATURE (Happy Path GAP is OK): If the FEATURE CONTEXT shows the feature has
+NO real anchors — every ref in functions[] and l2_sources[] is a GAP:: marker (no
+SRS::S3/S4/S5, API::, or BATCH:: ref) — the source is a skeletal stub with no traceable
+operation. In that case a Happy Path AC may KEEP its GAP:: ref. Do NOT invent a
+SRS::BATCH::STEP-NNN or SRS::S5::EVENT-NNN anchor to satisfy the critic — that anchor does
+not exist in the SRS, the deterministic normalizer will immediately revert it to GAP::, and
+you will loop. Leave the GAP:: ref in place; the critic accepts it for anchor-less features.
+
+── QC-2. Story Independence Before Splitting (mirrors Gate 6c Condition 3) ─────
+If the CRITIC SUGGESTED FIX instructs you to SPLIT a story, you MUST verify
+independence BEFORE returning the split parts.
+
+INDEPENDENCE CHECK: For each resulting part, ask —
+  "Can a developer ship THIS story alone to production and deliver observable,
+   testable business value without needing any other story in this feature to
+   have run or been implemented first?"
+
+If the answer is YES for all parts → proceed with the split.
+
+If the answer is NO for any part (e.g. a "Print Results" story that needs
+a "Search" story to populate the grid, or an "Export" story that only works
+after "Search") → DO NOT split. Instead:
+  • Keep the operations together in one story under the primary intent.
+  • Express the secondary operations as additional Acceptance Criteria
+    (Alternative Path or Edge Case) of the primary story.
+  • Adjust the story title and i_want_to to cover the combined scope.
+
+RULE: A story that is only meaningful AFTER another story in this feature
+has been executed is NOT independently deliverable. It violates Condition 3
+and will be immediately re-rejected by the critic.
+
+SAFE SPLIT PATTERNS (independently deliverable):
+  ✓ "Search/Filter records" — does not depend on any other story
+  ✓ "Manage access permissions" — role assignment works standalone
+  ✓ "Import data from file" — independent of the record-view story
+  ✓ "Close window and roll back transaction" — always independently testable
+
+UNSAFE SPLIT PATTERNS (violate Condition 3 — do NOT split this way):
+  ✗ "Display search results" split from "Search" → results require search
+  ✗ "Print results" split from "Search" → print requires a populated grid
+  ✗ "Export to Excel" split from "Search" → export requires search results
+  ✗ "Preview document" split from "Load record" → preview requires a loaded record
+  ✗ "Open edit window" split from "Save edited record" → pure navigation, no value
+
+════════════════════════════════════════════════════════════
+📄  SRS SOURCE CONTENT (for AC writing context)
+════════════════════════════════════════════════════════════
+
+{SRS_CONTENT}
+
+════════════════════════════════════════════════════════════
+📤  OUTPUT FORMAT
+════════════════════════════════════════════════════════════
+
+Output a single JSON object inside <CORRECTIONS> tags. The object has THREE keys:
+
+  "new_function_entries": []   ← ALWAYS an empty array. Do NOT propose new functions.
+                                  The feature's functions[] array is the FIXED, deterministic
+                                  story ceiling (derived from the SRS S.5 events / batch steps);
+                                  the pipeline DISCARDS any entries you put here, so adding them
+                                  only wastes effort and cannot raise the ceiling.
+                                  • SPLITTING a story: assign each resulting part an EXISTING
+                                    functions[] l2_source_ref (each part maps to a distinct
+                                    already-listed function). Do NOT invent a function for the
+                                    second part. If there are NOT enough existing functions to
+                                    give each part its own, DO NOT split — MERGE instead and
+                                    express the secondary intent as additional acceptance
+                                    criteria of the primary story (see QC-2).
+                                  • COVERAGE-GAP stories: only create one when the gap L2 ID is
+                                    already an entry in the feature's functions[]/l2_sources[];
+                                    reuse that ref. Never mint a new function.
+
+  "stories": []                ← All corrected and new UserStory objects.
+                                  For replacements: use the EXACT SAME story ID.
+                                  For splits: first part keeps original ID, second part
+                                  uses the next sequential ID (S{NEXT_STORY_SEQ}, etc.).
+                                  For new stories (coverage gaps): use next available IDs.
+
+  "remove_story_ids": []       ← IDs of stories that must be DELETED from the output.
+                                  Use this when the CRITIC SUGGESTED FIX instructs you
+                                  to remove a story entirely (e.g., "pure navigation with
+                                  no business value", "duplicate of another story",
+                                  "contains no user-facing behaviour").
+                                  Rules:
+                                    • List the exact story ID (e.g., "MFU-001-F1-S6").
+                                    • Do NOT include a removed story in "stories": [].
+                                    • If the critic says "remove or rework", prefer removal
+                                      when the story has no salvageable business value;
+                                      prefer rework (place in "stories") when a valid core
+                                      intent exists that can be corrected.
+                                    • Removing a story that covers a non-dispatch business
+                                      event creates a coverage gap — only remove if the
+                                      critic explicitly identifies zero business value.
+
+Each UserStory object MUST include ALL required fields:
+  id, title, as_a, i_want_to, so_that, story_points, acceptance_criteria (3 minimum),
+  l2_sources, technical_notes, migration_hint, non_functional_requirements
+
+Each acceptance_criterion MUST include:
+  id, path_type (Happy Path / Negative Path / Edge Case), given, when, then, l2_source_ref
+
+Story ID format:    {FEATURE_ID_PREFIX}-S{N}
+AC ID format:       {FEATURE_ID_PREFIX}-S{N}-AC{M}
+story_points:       Fibonacci only {2, 3, 5, 8} — no other values.
+
+<CORRECTIONS>
+{
+  "new_function_entries": [],
+  "stories": [],
+  "remove_story_ids": []
+}
+</CORRECTIONS>

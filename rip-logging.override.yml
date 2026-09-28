@@ -1,0 +1,23 @@
+# Merged over the RIP backend compose file by D:\RIP\docker-compose.yml.
+# Writes each container's Compose project and service into its Docker log lines
+# ("attrs"), so rip-otel-collector can pick out RIP logs and name the service.
+x-rip-logging: &rip_logging
+  logging:
+    driver: json-file
+    options:
+      labels: com.docker.compose.project,com.docker.compose.service
+      max-size: 10m
+      max-file: "3"
+
+services:
+  api: *rip_logging
+  beat: *rip_logging
+  i1_worker1: *rip_logging
+  i1_worker2: *rip_logging
+  i2_worker1: *rip_logging
+  i2_worker2: *rip_logging
+  i3_worker1: *rip_logging
+  i3_worker2: *rip_logging
+  i4_worker1: *rip_logging
+  i4_worker2: *rip_logging
+  i4_worker3: *rip_logging

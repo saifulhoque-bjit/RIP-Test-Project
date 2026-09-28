@@ -1,0 +1,17 @@
+{
+  "status": "success",
+  "module_id": "MOD-SHARED",
+  "spec_generation": {
+    "grouped_specs": {
+      "markdown_specs": [],
+      "config_specs": []
+    }
+  },
+  "feature_derivation": {
+    "module_id": "MOD-SHARED",
+    "results": [],
+    "total": 0,
+    "approved": 0,
+    "error": "No feature story files found for module 'MOD-SHARED' under E:\\Projects\\RIP\\Codebase\\MVP\\p1821.2_rip_backend\\app\\services\\source_code_pipeline\\projects\\sample_project\\modules\\MOD-SHARED\\stage4_specs"
+  }
+}

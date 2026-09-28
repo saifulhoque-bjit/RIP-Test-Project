@@ -1,0 +1,59 @@
+# **LANGUAGE FORENSIC ADDENDUM: POWERBUILDER — API CONTRACTS**
+*(Injected into Universal Core V3 at the language_specific_tiers slot)**
+
+---
+
+## **L.1 Transaction Object Contract**
+**MANDATORY:** The PowerBuilder Transaction Object is the equivalent of a modern database connection/session context. Every distinct Transaction Object in the MFU MUST be documented.
+
+| Property | Value (Literal) | Modern Equivalent |
+| :--- | :--- | :--- |
+| **Transaction Object Name** | (e.g., `SQLCA`, `ltr_custom`) | Database connection/session |
+| **DBMS** | (e.g., `MSS`, `SYC`, `DB2`) | Target RDBMS identifier |
+| **DBParm** | (e.g., `ConnectString='DSN=...'`) | Connection string |
+| **AutoCommit** | (`TRUE` / `FALSE`) | Auto-commit vs. explicit transaction |
+| **Commit/Rollback Authority** | (Which artifact issues `COMMIT` / `ROLLBACK USING ltr_*`) | Transaction boundary owner |
+
+**Distributed Transactions:** If multiple Transaction Objects are active simultaneously (e.g., reading from one DB and writing to another), document the coordination pattern and whether a two-phase commit is required in the modern system.
+
+---
+
+## **L.2 DataStore as Headless Data Pipeline**
+**MANDATORY:** When a `DataStore` object (non-visual DataWindow) is used for server-side data operations without a visible grid, it is the equivalent of a modern repository/DAO component.
+
+* **DataObject Assignment:** Extract the `DataObject =` property — this is the query/update contract.
+* **Retrieve Arguments:** Document `ds_name.Retrieve(arg1, arg2, ...)` — these map to the API GET request parameters.
+* **Modify() Calls:** Identify runtime column or row modifications applied before `Update()` — these are server-side transformations.
+* **Update() Call:** Document the DML sequence triggered by `ds_name.Update()`, referencing the DataWindow's `updatewhere` and `keymodification` characteristics (see UI Addendum L.1).
+* **RowCount / Find():** Document any programmatic row inspection used as server-side validation.
+
+| DataStore ID | DataObject | Retrieve Arguments | Update Target Table | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| [ds_name] | [dw_object_name.srd] | [arg1, arg2] | [TABLE_NAME] | [What data pipeline this represents] |
+
+---
+
+## **L.3 PowerBuilder DML DNA**
+**MANDATORY:** PowerBuilder's DataWindow update mechanism is distinct from standard SQL and MUST be explicitly mapped to modern DML patterns.
+
+| Characteristic | Legacy Value (Literal) | Modern DML Requirement |
+| :--- | :--- | :--- |
+| **updatewhere** | (e.g., `key`) | WHERE clause uses PK columns only — no optimistic lock on all columns |
+| **updatewhere** | (e.g., `keyandmodifiable`) | WHERE clause uses PK + all updateable columns — full optimistic lock |
+| **keymodification** | (e.g., `delete+insert`) | PK change requires DELETE old row then INSERT new row — not UPDATE |
+| **Update Order** | Hardcoded: **Delete → Insert → Update** | Must preserve this DML execution order in modern ORM |
+| **table.update** | (e.g., `ORDER_LINES`) | Target table for UPDATE statements |
+
+---
+
+## **L.4 Dynamic SQL & Embedded SQL Patterns**
+**MANDATORY:** Scan for PowerBuilder embedded SQL (non-DataWindow) and dynamic SQL patterns. These represent direct database operations that bypass the DataWindow contract.
+
+* **Static Embedded SQL:** `SELECT ... INTO :ls_var FROM ...` — document the query, variables, and the event that triggers it.
+* **Dynamic SQL Format 1:** `EXECUTE IMMEDIATE "..."` — extract the literal SQL string.
+* **Dynamic SQL Format 2/3/4:** `PREPARE ... FROM "..."` / `DECLARE CURSOR ...` / `EXECUTE ...` — trace the full prepare-execute-fetch cycle.
+* **Stored Procedure Calls:** `DECLARE proc PROCEDURE FOR sp_name(...)` — document input/output parameters.
+
+| SQL Type | Literal SQL / Pattern | Trigger Event | Variables Bound | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| [Static / Dynamic / Proc] | [Raw SQL from source or masked_regions] | [Event name] | [:var1, :var2] | [Why this query exists] |

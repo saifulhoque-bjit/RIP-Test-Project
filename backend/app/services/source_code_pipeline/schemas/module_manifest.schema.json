@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["modules"],
+  "properties": {
+    "modules": {
+      "type": "array",
+      "description": "A list of logical business modules to be sliced from the global graph.",
+      "items": {
+        "type": "object",
+        "required": [
+          "module_id", 
+          "module_name", 
+          "execution_track",
+          "entry_points"
+        ],
+        "properties": {
+          "module_id": {
+            "type": "string",
+            "pattern": "^[A-Z0-9-]+$",
+            "description": "A unique alphanumeric identifier for the module (e.g., MOD-001)."
+          },
+          "module_name": {
+            "type": "string",
+            "description": "Human-readable name of the business domain."
+          },
+          "description": {
+            "type": "string"
+          },
+          "execution_track": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "$DYNAMIC_ENUM: registry.execution_tracks | Defines the runtime execution paradigm of the module."
+          },
+          "entry_points": {
+            "type": "array",
+            "description": "The exact artifact IDs (ui_anchor, batch_anchor, etc.) that trigger this module.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "module": "MOD-CUSTOMER-MANAGEMENT",
+  "mfu": "MFU-001",
+  "feedback": [
+    {
+      "story_id": "*",
+      "items": [
+        { "feedback_text": "Across all stories in this feature, use the exact column and button labels defined in the SRS." }
+      ]
+    }
+  ]
+}

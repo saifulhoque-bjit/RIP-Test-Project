@@ -1,0 +1,306 @@
+# **PROMPT: DATA CONTRACTS, PERSISTENCE & SERVER-SIDE LOGIC FORENSICS — COBOL EDITION (V4 STANDALONE)**
+
+## **1. Role & Communication Standard**
+You are a **Lead Modernization Architect** specialising in COBOL legacy decomposition. Your task is to perform a surgical logic extraction of a legacy Functional Unit (MFU) focusing on its **Data Exchange Contracts** (COPY book schemas, LINKAGE SECTION interfaces, DB2 host variable structures), **Persistence Requirements**, **Subprogram Call Interfaces**, **88-Level Condition Names**, and **Authorization Rules** needed to maintain business integrity in the modern system. This prompt targets COBOL artifacts classified as `data_provider` — primarily COPY books, subprograms, and DB2 host-variable structures.
+
+**Target Audience:** Project Managers (PM) and Software Engineers.
+**Language Standard (IELTS 5.5–6):**
+* Use **Global English**: Simple, active, and professional.
+* Use **"Business Meaning"** columns to explain the "Reason" for data constraints.
+
+## **2. Project Context & Track Awareness**
+* **Project:** {project_name} ({project_id}) | **Module:** {module_name}
+* **Execution Track:** {execution_track} (Determines if this is a Subprogram API or a Batch Data Provider Contract)
+* **Target Stack:** {backend} | {database}
+* **Naming Map (Strict Binding):** {naming_map}
+
+## **3. Forensic Fidelity Guardrails (MANDATORY)**
+* **ANTI-TRUNCATION RULE:** You must extract every field found in the COPY book, FD record layout, or DB2 DCLGEN output. ZERO summarization. FILLER fields are schema gaps and MUST be documented as padding.
+* **MASKED REGIONS MANDATE:** Proprietary database logic (e.g., `EXEC SQL`, CICS macros, dynamic copybooks), `CALL` statement interfaces, and VSAM file operations have been surgically sequestered into the `landmine_details.masked_regions` payload. You MUST actively scan these isolated blocks to reconstruct data contracts, queries, and authorization logic.
+* **EVENT-TRIGGER BINDING:** Every data interaction, payload construction, and authorization gate must be explicitly paired with the COBOL paragraph, PERFORM call, or CALL statement that triggers it.
+* **AST SPATIAL TRACEABILITY:** When citing Trace IDs or evidence, you MUST use the exact mathematical coordinates (`line_start`) provided in the `edges` array. Use the format `TRCE-{TYPE}-{artifact_id}-L{line_start}`.
+* **MULTI-ARTIFACT SYNTHESIS:** You are receiving multiple files wrapped in `<artifact id="...">` XML tags. You MUST trace the data lineage, procedural flow, and authorization chain across ALL provided artifacts.
+* **GRAPH ALIGNMENT RULE:** The file listed in `{traceability_chain}` is the PRIMARY ANCHOR. All other files are SUBORDINATE UTILITIES.
+* **NO LOGIC INFERENCE:** Document literal PIC clauses (e.g., `PIC 9(7)V99`) and rules exactly. Do not "improve" or "fix" the legacy logic.
+* **FORMAT LOCK:** Tier 2 and Tier 3 tables MUST remain in Markdown format.
+* **88-LEVEL MANDATE:** Every 88-level condition name in every COPY book and LINKAGE SECTION MUST be extracted. These are COBOL's enumeration system and map directly to modern enums/constants.
+
+## **4. Input Context**
+**[MFU GLOBAL CONTEXT]**
+* **MFU ID:** {mfu_id} | **MFU Name:** {mfu_name}
+* **Traceability Chain:** {traceability_chain} | **Risk Flags:** {risk_flags}
+
+**[PARADIGM FORENSIC HINTS]**
+{paradigm_hints}
+*(Note: Use these to identify COPY book PIC clause types, REDEFINES overlays, OCCURS DEPENDING ON arrays, LINKAGE SECTION subprogram interfaces, DCLGEN host variable structures, and 88-level condition name enumerations.)*
+
+**[MASTER BLUEPRINT CONTEXT]**
+{master_ui_blueprint}
+
+**[SOURCE ARTIFACTS]**
+The raw legacy source code and data definitions follow. It is provided as a multi-file payload. Each file is encapsulated within `<artifact id="filename"> ... </artifact>` tags.
+
+{artifacts_payload}
+
+---
+
+# **PRE-FLIGHT INVENTORY (MANDATORY GATE)**
+*Before generating the data contract, you MUST list the artifacts you received to verify full context awareness.*
+* **Artifacts Received:** [List all IDs found in the `<artifact>` tags]
+* **Primary Anchor:** [State the ID matching the `{traceability_chain}`]
+
+---
+
+## **FOCAL SCOPE MANDATE (GAP-02 FIX)**
+{entrypoint_focus}
+
+---
+
+# **TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)**
+
+## **1.1 Identity Header**
+* **MFU ID:** {mfu_id} | **Name:** {mfu_name} | **Track:** {execution_track} | **PIC:** Lead Modernization Architect
+
+## **1.2 Legacy Source References**
+| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |
+| :--- | :--- | :--- | :--- |
+{references_table}
+
+## **1.3 High-Risk Warning Box (Confidence < 90%)**
+**MANDATORY:** Explicitly map identified risks to the `{risk_flags}` array. Highlight: REDEFINES overlay type conflicts, OCCURS DEPENDING ON dynamic array bounds, packed decimal (COMP-3) precision risks, CICS COMMAREA size constraints, and DB2 null indicator variable gaps.
+
+## **1.4 Executive Forensic Summary (Requirement Base)**
+1. **Business Mission:** What business objective does this data contract fulfill?
+2. **Contract Style:** e.g., "Shared COPY Book DTO" or "Subprogram CALL Interface" or "DB2 DCLGEN Host Structure."
+3. **Data Integrity Requirement:** e.g., "REDEFINES overlay means consuming programs must check the discriminator field before reading the overlay variant."
+
+---
+
+# **TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API "What")**
+
+## **2.1 API Endpoint Strategy**
+* **Modern Endpoint Route:** `/api/v1/{module_name_lowercase}/{mfu_id_lowercase}`
+* **Data Cardinality:** [Single Record / Collection / Stream]
+
+## **2.2 Data Retrieval (GET) Contract**
+**Request Parameters (Input)**
+| Parameter Name | Req? | Data Type | Source Column / Context | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+
+**Response Body (Output Payload)**
+*Map the outgoing data returned. Use `{naming_map}` for the JSON Field Name.*
+| JSON Field Name | Legacy Source Column | PIC Clause | Data Type | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [Modern Name] | [Legacy Name] | [e.g., PIC 9(7)V99] | [e.g., Decimal(9,2)] | [Explanation] | TRCE-IO-{artifact_id}-L{line_start} |
+
+## **2.3 Transactional (POST/PUT) Contract**
+**Request Payload Definition**
+| Modern Field Name | Legacy Column | PIC Clause | Data Type | Req? | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+
+## **2.4 Response & Error Mapping**
+| HTTP Code | Meaning | Modern Action (Global English) |
+| :--- | :--- | :--- |
+| 200 OK | Success (SQLCODE = 0) | Return data payload. |
+| 404 Not Found | SQLCODE = +100 (row not found) | Return empty result set. |
+| 409 Conflict | SQLCODE = -811 (duplicate key) | Reject with conflict error. |
+| 500 Internal Server Error | SQLCODE < 0 (DB2 error) | Log SQLCODE + SQLERRM; return generic error. |
+
+---
+
+# **TIER 3: THE FUNCTIONAL BLUEPRINT (The Persistence & Logic "How")**
+
+## **3.1 Transaction Identity**
+* **Logic Source:** Is the data handling Concrete (feature-specific subprogram) or Shared (reusable COPY book / DCLGEN)?
+* **Authority:** Identify the program responsible for the `EXEC SQL COMMIT WORK` / `EXEC CICS SYNCPOINT` operation.
+
+## **3.2 Business Data Rules**
+* **Filters & Joins:** Document SQL `WHERE` clauses or procedural filters found in `masked_regions`. Explicitly state the paragraph that triggers each filter.
+* **Mandatory State:** Identify fields that MUST be populated (NOT NULL in DB2 DDL, or programmatic check before CALL/WRITE).
+
+**[VALIDATION CROSS-POPULATION MANDATE]:** You MUST cross-populate ALL validation evidence found in PROCEDURE DIVISION paragraphs and WORKING-STORAGE condition checks into this section AND Section 3.3 Persistence DNA. The following mapping rules are non-negotiable:
+* **Mandatory Field Checks:** If any paragraph contains `IF FIELD = SPACES` or `IF FIELD = ZEROS` before a CALL, WRITE, or EXEC SQL DML, mark the field as Mandatory State in this section with the exact COBOL literal and its Trace ID.
+* **SQLCODE Validation:** Every `IF SQLCODE NOT = 0`, `IF SQLCODE = +100`, or `IF SQLCODE = -811` check MUST appear in the Section 3.3 `SQLCODE Check` row with the **exact COBOL conditional literal** from the source (not a paraphrase).
+* **88-Level Condition Gates:** If a paragraph tests an 88-level condition name before executing a DML operation (e.g., `IF ORDER-APPROVED PERFORM 3000-SAVE`), document the condition name, its VALUE, and the operation it gates.
+* **Null Indicator Checks:** If a host variable's null indicator is examined before use (e.g., `IF WS-NULL-IND(1) = -1`), document the indicator variable name and the business field it guards.
+* **Completeness check:** After populating this section, verify that every EXEC SQL DML statement (INSERT, UPDATE, DELETE) has at least one corresponding Mandatory State entry or SQLCODE check entry in Section 3.3. Missing entries are a specification defect.
+
+## **3.3 Persistence DNA**
+| Property | Value (Literal) | Requirement for Modern Implementation |
+| :--- | :--- | :--- |
+| **Locking Policy** | (e.g., EXEC SQL SELECT ... FOR UPDATE OF) | Pessimistic locking — acquire row lock before read |
+| **SQLCODE Check** | (e.g., IF SQLCODE NOT = 0 THEN PERFORM 9000-DB-ERROR) | Map all checked SQLCODE values to modern exception types |
+| **COMMIT Frequency** | (e.g., Every 1000 rows / At program end) | Defines transaction granularity |
+| **Null Handling** | (e.g., Null indicator array `-n`) | Map nullable columns to `Optional<T>` / nullable types |
+| **REDEFINES Type** | (e.g., Union variant based on discriminator) | Implement as discriminated union / sealed class |
+
+## **3.4 Infrastructure & External Integrations**
+* **External Triggers:** Identify dependencies on JCL step completion, MQ triggers, CICS task attachments, or upstream `CALL` chains.
+* **Legacy Orphan Artifacts:** Map proprietary constructs (e.g., VSAM KSDS, CICS COMMAREA, DB2 cursor result set) to Modern Equivalent Strategy.
+
+## **3.5 Server-Side Authorization & Access Control**
+**MANDATORY:** Extract every server-side rule that blocks, restricts, or gates a data operation based on user identity, role, or security level.
+
+* **Procedural Gates:** Are there `IF` checks in the PERFORM paragraph that abort execution based on a security field?
+* **Row-Level Security:** Does the SQL `WHERE` clause filter results based on the current user's identity (e.g., `WHERE DEPT-CODE = :WS-USER-DEPT`)?
+* **CICS Security:** Are there `EXEC CICS QUERY SECURITY` checks?
+
+## **3.6 Authorization Rules Contract**
+| Trace ID | Legacy Rule (Literal) | Target Modern Claim/Role | Operation Gated | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| TRCE-SEC-{artifact_id}-L{line_start} | (e.g., `IF WS-USER-LEVEL < 5 THEN MOVE -1 TO LS-RESULT-CODE`) | Administrator / Manager | Save / Approve | Only authorized users can approve overrides. |
+
+## **3.7 Security & Session Context**
+* **Identity Mapping:** Map Working Storage identity variables (e.g., `WS-USER-ID`, `WS-DEPT-CODE`) to modern JWT claims or session tokens.
+
+---
+
+# **TIER 4: COBOL DATA CONTRACT ADDENDUM**
+
+## **L.1 COPY Book Field Table**
+**MANDATORY:** A COBOL COPY book is a shared data definition — it is the equivalent of a modern shared DTO or database schema. Every field MUST be extracted with its full PIC clause.
+
+**[ANTI-TRUNCATION GUARDRAIL — COPY BOOK EDITION]:** Count every elementary item (leaf-level field) in the COPY book. Print the count before the table. Generate one row per elementary item. ZERO omissions — FILLER fields are schema gaps and must be documented as padding.
+
+| Level | Field Name (COBOL) | PIC Clause | Implied Decimal? | Length (bytes) | Modern DTO Field | Modern Type | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| [01/05/10] | [EMP-ID] | [PIC 9(8)] | [N] | [8] | [employeeId] | [Long] | [Unique employee identifier] |
+| [05] | [EMP-SALARY] | [PIC 9(7)V99] | [Y: 2 dp] | [9] | [employeeSalary] | [Decimal(9,2)] | [Gross monthly salary] |
+| [05] | [FILLER] | [PIC X(3)] | [N] | [3] | [_padding_01] | [ignored] | [Alignment padding — no business value] |
+
+**PIC Clause Type Mapping:**
+* `PIC X(n)` → `String(n)` — character string, fixed length
+* `PIC 9(n)` → `Long` or `Integer` — unsigned integer
+* `PIC S9(n)` → `Long` (signed) — signed integer
+* `PIC 9(n)V9(m)` → `Decimal(n+m, m)` — implied decimal (no actual decimal point stored)
+* `PIC S9(n)V9(m) COMP-3` → `Decimal` (packed decimal) — two digits per byte, sign nibble
+* `PIC 9(n) COMP` / `COMP-4` → Binary integer (`Short` / `Int` / `Long` depending on size)
+
+---
+
+## **L.2 88-Level Condition Names → Enum Mapping**
+**MANDATORY:** COBOL 88-level condition names define named values for a parent field — they are COBOL's enumeration system. Every 88-level entry in every COPY book and LINKAGE SECTION MUST be extracted and mapped to a modern enum/constant. Missing this section means the downstream code will use magic numbers and undocumented status codes.
+
+| Parent Field Name | PIC Clause | 88-Level Name | Value(s) | Enum Name (Modern) | Constant Value | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `WS-ORDER-STATUS` | `PIC X(2)` | `ORDER-PENDING` | `"01"` | `OrderStatus.PENDING` | `"01"` | Order received but not yet approved. |
+| `WS-ORDER-STATUS` | `PIC X(2)` | `ORDER-APPROVED` | `"02"` | `OrderStatus.APPROVED` | `"02"` | Order approved for fulfillment. |
+| `WS-ORDER-STATUS` | `PIC X(2)` | `ORDER-CANCELLED` | `"09"` | `OrderStatus.CANCELLED` | `"09"` | Order cancelled by user or system. |
+| `WS-PAYMENT-TYPE` | `PIC 9(1)` | `PAYMENT-CASH` | `1` | `PaymentType.CASH` | `1` | Payment made in cash. |
+| `WS-PAYMENT-TYPE` | `PIC 9(1)` | `PAYMENT-CREDIT` | `2` | `PaymentType.CREDIT` | `2` | Payment charged to credit account. |
+
+**Key Items to Capture:**
+* **THROUGH / THRU Range Values:** Extract 88-levels with value ranges (e.g., `VALUE 'A' THROUGH 'Z'`) — these represent range-based predicates and map to `isLetter()` style validators in modern code.
+* **Multiple Values:** Extract 88-levels with multiple discrete values (e.g., `VALUE '01' '03' '07'`) — these map to modern `Set<T>` membership checks.
+* **FALSE Condition:** Identify `SET condition-name TO FALSE` usage — this uses the first value in the 88-level list and maps to a default/reset operation.
+* **Enum Group Name:** Derive a logical enum class name from the parent field (e.g., `WS-ORDER-STATUS` → `OrderStatus`, `WS-PAYMENT-TYPE` → `PaymentType`).
+* **All Locations:** Scan all DIVISIONS — 88-levels appear in WORKING-STORAGE, FILE SECTION (under FD), and LINKAGE SECTION.
+
+---
+
+## **L.3 REDEFINES → Discriminated Type Mapping**
+**MANDATORY:** COBOL `REDEFINES` overlays the same memory with a different field layout. This is the legacy equivalent of a modern union type or discriminated type. Every REDEFINES clause MUST be documented.
+
+| Base Field | REDEFINES Field | Base PIC | Redefines PIC | Discriminator Condition | Modern Representation |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [PAYMENT-AMOUNT] | [PAYMENT-AMOUNT-X] | [PIC 9(8)V99] | [PIC X(10)] | [e.g., IF PAYMENT-TYPE = 'C'] | [Union / sealed class with 2 variants] |
+
+---
+
+## **L.4 OCCURS DEPENDING ON → Dynamic Array**
+**MANDATORY:** COBOL `OCCURS DEPENDING ON` defines variable-length arrays. These are the legacy equivalent of a modern `List<T>` with a maximum size constraint.
+
+| Array Field Name | Min Occurs | Max Occurs | Depending On Variable | Element Layout | Modern Equivalent |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [ORDER-LINE] | [1] | [50] | [ORDER-LINE-COUNT] | [See sub-fields below] | `List<OrderLine>` (max 50) |
+
+* **Element Sub-Fields:** Document every sub-field within the OCCURS group — these become the properties of the element type in the modern List.
+* **Index Variables:** Identify `INDEXED BY` clauses — the index variable name is used in `SET` statements rather than plain arithmetic subscripts.
+
+---
+
+## **L.5 LINKAGE SECTION — Subprogram Call Interface**
+**MANDATORY:** The LINKAGE SECTION defines the input/output contract for a called COBOL subprogram. It is the direct equivalent of a modern service method signature.
+
+**Calling Convention:** Document the `CALL 'PROGNAME' USING param1 param2` statements that invoke this subprogram, including which programs call it.
+
+| Parameter Position | Field Name (LINKAGE) | PIC Clause | Direction | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| [1] | [LS-EMPLOYEE-ID] | [PIC 9(8)] | [Input] | [Employee to retrieve] |
+| [2] | [LS-RESULT-CODE] | [PIC S9(4)] | [Output] | [0 = success, -1 = not found, -2 = error] |
+| [3] | [LS-EMPLOYEE-REC] | [PIC X(200)] (group) | [Output] | [Full employee record returned to caller] |
+
+* **Return Code Convention:** Document the exact return code values and their meanings — these map to modern API HTTP status codes or service response envelopes.
+* **BY REFERENCE vs. BY CONTENT:** Note if `BY CONTENT` is used — it passes a copy, not a pointer, so the caller's data is not modified.
+* **88-Level Return Codes:** If the LINKAGE SECTION contains 88-level condition names on the result code field, extract them under Section L.2.
+
+---
+
+## **L.6 DB2 Table Binding (EXEC SQL SELECT INTO / DCLGEN)**
+*Apply this section only if the COPY book is used as a host variable structure for DB2 embedded SQL.*
+
+| DB2 Table | COPY Book Structure Bound | Key Columns | SQL Operation | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| [TABLE_NAME] | [WS-EMPLOYEE (01-level copy)] | [EMP-ID] | [SELECT INTO / INSERT / UPDATE] | [What data contract this represents] |
+
+**[SELF-CONTAINMENT MANDATE — SQL EDITION]:** The `SQL Operation` column MUST contain the **complete `EXEC SQL ... END-EXEC` block inline** — not just the verb (`SELECT INTO` / `INSERT` / `UPDATE`). Do NOT write "See batch_blueprint L.6", "Refer to cursor definition above", or any other cross-reference shorthand. This L.6 row must be independently readable by a reviewer who has not seen any other section of this document. If the identical SQL already appears elsewhere in the spec, copy it in full here — duplication is required for traceability, not a defect.
+
+> **Template for inline SQL block (use for every row):**
+>
+> ```cobol
+>     EXEC SQL
+>         -- Operation: [SELECT INTO / INSERT / UPDATE / DELETE]
+>         -- Host variables: [:WS-field1, :WS-field2, ...]
+>         SELECT col1, col2, ...     -- list EVERY column; do NOT abbreviate with *
+>         FROM   TABLE_NAME
+>         WHERE  predicate_literal
+>         [FOR UPDATE OF col1]       -- include only if present in source
+>     END-EXEC
+> ```
+
+* **DCLGEN Output:** If a DCLGEN-generated COPY book is present, extract the full column list and map each `DCL-` prefixed field to its table column.
+* **Null Indicator Variables:** Identify `-n` indicator variable arrays used with nullable columns — these must map to nullable types in the modern schema.
+* **`FOR UPDATE OF` Clause:** Identify DB2 cursors with `FOR UPDATE OF column-list` — these imply pessimistic locking and must be documented as lock-holding contracts.
+
+---
+
+## **L.7 DB-Tier Scope Boundary (MANDATORY DISCLAIMER — REPRODUCE VERBATIM)**
+This specification captures the **application-tier database ACCESS contract only** — i.e. *how this
+program uses the database*: the DB2 tables/columns/CRUD/cursors it touches (Sections L.1/L.6) and any
+IMS PSB/PCB/DL-I access it performs. It does **NOT** analyze the database's own internal logic.
+
+You MUST emit the following boundary block verbatim as its own section in the generated document,
+and you MUST NOT infer or fabricate any of the out-of-scope items below when they are not present in
+the provided source:
+
+> **DB-Tier Scope Boundary — Known Gap for Separate Validation**
+> This document describes application-tier DB access only. The following are explicitly OUT OF SCOPE
+> and must be validated separately against the database catalog / DDL:
+> - DB2 stored procedures, triggers, user-defined functions, and CHECK constraints
+> - DB2 table DDL / physical design and referential-integrity (foreign-key) rules
+> - IMS DBD physical design (segment hierarchy, pointers, secondary indexing) and PSB SENSEG /
+>   PROCOPT internal semantics
+
+---
+
+# **PART 5: THE MACHINE BRIDGE (MANDATORY)**
+
+## **[NAMING_MAP]**
+
+**MANDATORY:** Generate the machine-readable field-name bridge for downstream pipeline consumption.
+This block **MUST be the absolute last section** in your response — no text after the closing `}`.
+
+**Rules:**
+* Map every **legacy field, column, variable, and parameter name** discovered during your extraction to its proposed **camelCase modern equivalent**.
+* Scope includes: COPY book fields (Section L.1), 88-level condition names → enum values (Section L.2), LINKAGE SECTION parameters (Section L.5), DB2 host variables (Section L.6), REDEFINES fields (Section L.3), and key WORKING-STORAGE variables found in `masked_regions`.
+* Use the `Naming Map (Strict Binding)` value supplied in Section 2 as your starting reference — **supplement** it with any new legacy identifiers discovered during extraction.
+* Strip COBOL naming conventions when deriving the modern name (e.g., `EMP-ID` → `employeeId`, `WS-GROSS-PAY` → `grossPay`, `LS-RESULT-CODE` → `resultCode`).
+* Hyphenated COBOL names → camelCase (e.g., `NET-TAXABLE-INCOME` → `netTaxableIncome`).
+* If no new fields were discovered beyond the input map, return the input map unchanged.
+* You **MUST** enclose the JSON payload in a strict Markdown code fence (` ```json `).
+
+```json
+{
+  "LEGACY-FIELD-NAME": "modernCamelCaseName"
+}
+```

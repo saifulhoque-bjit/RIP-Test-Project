@@ -1,0 +1,16 @@
+{
+  "module": "MOD-CUSTOMER-MANAGEMENT",
+  "mfu": "MFU-001",
+  "feedback": [
+    {
+      "story_id": "CUSTOMER-MANAGEMENT-001-F1-S2",
+      "items": [
+        { "quoted_text": "Edit an Invoice from the List",
+          "feedback_text": "Clarify that editing is blocked once an invoice is marked paid, with a clear message." },
+        { "quoted_text": "Negative Path",
+          "feedback_text": "On save failure, keep the user on the edit form and preserve their entered values." },
+        { "feedback_text": "Require a confirmation dialog before overwriting an existing invoice." }
+      ]
+    }
+  ]
+}

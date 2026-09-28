@@ -1,0 +1,94 @@
+# Web framework
+fastapi[standard]==0.136.1
+uvicorn[standard]==0.44.0
+
+# ORM & database
+SQLAlchemy==2.0.49
+psycopg2-binary==2.9.11
+asyncpg==0.30.0
+alembic==1.18.4
+
+# Graph database
+neo4j==5.28.3
+
+# Pydantic v2
+pydantic==2.13.1
+pydantic-settings==2.13.1
+email-validator==2.3.0
+
+# Auth
+python-jose[cryptography]==3.5.0
+cryptography>=41.0.0
+passlib[bcrypt]==1.7.4
+cachetools==5.5.2
+aiobotocore[boto3]==2.25.1
+botocore==1.40.61
+boto3==1.40.61
+aioboto3==15.5.0
+
+# Redis & Celery
+# redis 7.x introduced internal socket-replacement mechanisms (re_auth,
+# mark_for_reconnect, _connect_callbacks auto-resubscription) that conflict with
+# kombu 5.6.2's event-loop transport, which stores a raw socket fd and expects it
+# to remain stable. kombu 5.6.2 (the latest release as of this pin) declares
+# redis!=4.5.5,!=5.0.2,<6.5,>=4.5.2 for exactly this reason — 6.4.0 is the
+# highest version satisfying that AND including the redis-py 5.3.0 fix that
+# made ConnectionPool.get_connection()'s command_name argument optional
+# (celery/backends/redis.py:_reconnect_pubsub calls get_connection() with no
+# args; redis-py <5.3.0, e.g. our previous 5.2.1 pin, made that a hard
+# TypeError on every reconnect attempt after a broker/result-backend Redis
+# disconnect, crashing the worker). Re-check kombu's redis extra bound before
+# raising this further.
+redis==6.4.0
+celery==5.6.3
+kombu==5.6.2
+
+# HTTP client
+httpx==0.28.1
+tenacity==9.1.4
+
+# Rate limiting
+slowapi==0.1.9
+
+# Utilities
+python-multipart==0.0.26
+python-dotenv==1.2.2
+aiofiles==24.1.0
+python-json-logger==3.3.0
+spacy==3.8.14
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+
+# Llama Cloud
+llama_cloud==2.4.0
+
+# LangGraph / LangChain AI workflow
+langgraph>=0.4.0
+langchain-core>=0.3.0
+langchain-openai>=0.3.0
+langchain-anthropic>=0.3.0
+langchain-google-genai>=2.0.0
+langchain-deepseek>=1.0.1
+
+#image_processing
+google-genai>= 2.9.0
+#google-genai== 1.73.1
+#openai>= 2.43.0
+anthropic>= 0.111.0
+
+# Vector similarity search (pgvector)
+pgvector==0.3.3
+
+# Source code parsing
+tree-sitter==0.25.2
+# tree-sitter-languages==1.10.2
+tree-sitter-language-pack==1.6.2
+openai==2.35.1
+jsonschema==4.26.0
+pandas==2.3.3
+litellm==1.85.1
+openpyxl==3.1.5
+
+# Export (requirements backlog PDF rendering)
+jinja2==3.1.6
+weasyprint==63.1
+langsmith

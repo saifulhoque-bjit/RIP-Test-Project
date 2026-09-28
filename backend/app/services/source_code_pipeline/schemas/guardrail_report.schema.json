@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MFU Guardrail Report (Polyglot v4.2)",
+  "description": "Deterministic audit report for MFU structural and semantic integrity.",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "object",
+      "properties": {
+        "source_paradigm": { 
+          "type": "string", 
+          "pattern": "^[a-z_]+$",
+          "description": "The architectural paradigm used for validation (e.g., mixed_polyglot, legacy_desktop)."
+        },
+        "mfu_count": { "type": "integer", "minimum": 0 },
+        "track_distribution": {
+          "type": "object",
+          "patternProperties": {
+            "^[A-Za-z0-9_-]+$": { 
+              "type": "integer", 
+              "minimum": 0 
+            }
+          },
+          "additionalProperties": false,
+          "description": "Dynamic distribution counts mapping directly to the active execution tracks."
+        },
+        "violations": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "integer", "minimum": 0 },
+        "coverage_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "batch_coverage_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "coverage_level": { "type": "string", "enum": ["OK", "WARN", "FAIL"] }
+      },
+      "required": ["source_paradigm", "mfu_count", "track_distribution", "violations", "warnings", "coverage_pct", "batch_coverage_pct", "coverage_level"],
+      "additionalProperties": false
+    },
+    "mfu_findings": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "violations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": { 
+                  "type": "string",
+                  "enum": [
+                    "CONFIDENCE_CAPPED",
+                    "INVALID_RISK_FLAG",
+                    "WEAK_CONNECTIVITY",
+                    "NO_ANCHOR",
+                    "OVERSIZED_MFU",
+                    "PARADIGM_MISMATCH"
+                  ]
+                },
+                "message": { "type": "string" },
+                "evidence": { 
+                  "type": "object",
+                  "additionalProperties": true 
+                }
+              },
+              "required": ["code", "message"]
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": { 
+                  "type": "string",
+                  "enum": [
+                    "CONFIDENCE_CAPPED",
+                    "INVALID_RISK_FLAG",
+                    "WEAK_CONNECTIVITY",
+                    "NO_ANCHOR",
+                    "OVERSIZED_MFU",
+                    "PARADIGM_MISMATCH"
+                  ]
+                },
+                "message": { "type": "string" },
+                "evidence": { 
+                  "type": "object",
+                  "additionalProperties": true 
+                }
+              },
+              "required": ["code", "message"]
+            }
+          }
+        },
+        "required": ["violations", "warnings"],
+        "additionalProperties": false
+      }
+    },
+    "orphans": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of artifacts not assigned to any MFU."
+    },
+    "audit_trail": {
+      "type": "object",
+      "properties": {
+        "de_duplicated_items": {
+          "type": "array",
+          "items": { 
+            "type": "object",
+            "properties": {
+              "artifact": { "type": "string" },
+              "kept_in": { "type": "string" },
+              "removed_from": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "required": ["artifact", "kept_in", "removed_from"],
+            "additionalProperties": false
+          },
+          "description": "Audit trail for artifacts found in multiple MFUs."
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": ["summary", "mfu_findings", "orphans", "audit_trail"],
+  "additionalProperties": false
+}

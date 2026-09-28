@@ -1,0 +1,12 @@
+# Server ports for the RIP backend compose file. The data stores stay on the
+# rip network only; the API moves off 8000 to 7900.
+services:
+  postgres:
+    ports: !reset []
+  neo4j:
+    ports: !reset []
+  redis:
+    ports: !reset []
+  api:
+    ports: !override
+      - "7900:8000"

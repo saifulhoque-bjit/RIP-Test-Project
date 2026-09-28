@@ -1,0 +1,454 @@
+// RIP Backend — Build + Deploy Pipeline
+//
+// DEPLOY_MODE parameter:
+//   code-only    → build new image → deploy backend with EXISTING env vars
+//                  (no env merge — task def env is preserved as-is from ECS)
+//   env-and-code → build new image → merge DEVELOPER-OWNED env block below into
+//                  the existing task def → deploy backend
+//
+// Both modes ALWAYS build a new image so build-<N> tags stay sequential in ECR.
+// Use code-only for pure code changes. Use env-and-code when adding/changing env vars.
+
+pipeline {
+
+    agent any
+
+    parameters {
+        choice(
+            name: 'DEPLOY_MODE',
+            choices: ['code-only', 'env-and-code'],
+            description: '''code-only    → build new image, deploy with EXISTING env vars (no env changes)
+env-and-code → build new image AND merge updated env vars from this Jenkinsfile into the task def'''
+        )
+    }
+
+    environment {
+
+        // ── CONFIGURATION — change this block per environment ─────────────────
+        APP_NAME   = 'backend'
+        APP_REPO   = 'p1821.2_rip_backend'
+        APP_BRANCH = 'mvp_development'
+
+        ECS_CLUSTER = 'rip-development-cluster'
+        AWS_ENV     = 'development'
+
+        // ── AWS ───────────────────────────────────────────────────────────────
+        AWS_REGION     = 'ap-northeast-1'
+        AWS_ACCOUNT_ID = '404210401723'
+
+        // ── Derived — do not change ───────────────────────────────────────────
+        ECR_REGISTRY     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPO_BACKEND = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/rip/task-management"
+        TASK_DEF_BACKEND = "rip-${AWS_ENV}-backend"
+        ECS_SERVICE_BACKEND = "rip-${AWS_ENV}-svc-backend"
+        IMAGE_TAG        = 'latest'
+
+        LOG_GROUP_BACKEND = '/ecs/rip/development/backend'
+
+        TOOLS_IMAGE = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/infra/common-tools:latest"
+        AWS_CREDS   = credentials('AWS_ACCESS_KEY_ID')
+
+        // ════════════════════════════════════════════════════════════════════
+        // DEVELOPER-OWNED — modify these values to update env in ECS task def.
+        // Run pipeline with mode 'env-and-code' to apply changes.
+        // Permanent secrets (DB, Cognito, API keys) and infrastructure env
+        // (SQS, SES, Redis, Neo4j, S3 bucket) are set once via Terraform
+        // main.tf and carried forward automatically — do NOT add them here.
+        // ════════════════════════════════════════════════════════════════════
+
+        NODE_ENV  = 'development'
+        LOG_LEVEL = 'info'
+
+        CELERY_BROKER_SOCKET_TIMEOUT         = ''
+        CELERY_RESULT_SOCKET_TIMEOUT         = ''
+        CELERY_BROKER_SOCKET_CONNECT_TIMEOUT = '30'
+        CELERY_BROKER_HEALTH_CHECK_INTERVAL  = '30'
+
+        AWS_S3_PRESIGNED_URL_EXPIRY = '3600'
+
+        LITELLM_LOCAL_MODEL_COST_MAP = 'True'
+
+        // ── Rate Limiting ─────────────────────────────────────────────────────
+        RATE_LIMIT_AUTH_REGISTER = '10/minute'
+        RATE_LIMIT_AUTH_CONFIRM  = '10/minute'
+        RATE_LIMIT_AUTH_LOGIN    = '20/minute'
+        RATE_LIMIT_AUTH_REFRESH  = '30/minute'
+
+        // ── Misc ──────────────────────────────────────────────────────────────
+        SOURCE_LOCAL_DOWNLOAD_DIR    = 'temp/sources'
+        S3_DOWNLOAD_CHUNK_SIZE_MB    = '5'
+        SOURCE_MAX_FILE_SIZE_MB      = '500'
+        SOURCE_LINK_MAX_FILE_SIZE_MB = '500'
+        SOURCE_BULK_MAX_FILES        = '20'
+        DB_AUTO_CREATE               = 'true'
+        SEED_SUPER_ADMIN_ENABLED     = 'true'
+        SUPER_ADMIN_EMAIL            = 'abdul.halim@bjitgroup.com'
+        SUPER_ADMIN_PASSWORD         = 'Bjit_12345'
+        SUPER_ADMIN_NAME             = 'Super Admin'
+        DEFAULT_TENANT_SLUG          = 'default'
+        FRONTEND_BASE_URL            = 'https://rip.bjitgroup.com'
+        INVITATION_EXPIRY_DAYS       = '7'
+    }
+
+    stages {
+
+        // ── Stage 1 ───────────────────────────────────────────────────────────
+        stage('Pull Tools Image') {
+            steps {
+                script {
+                    docker.withRegistry(
+                        "https://${ECR_REGISTRY}",
+                        "ecr:${AWS_REGION}:AWS_ACCESS_KEY_ID"
+                    ) {
+                        docker.image("${TOOLS_IMAGE}").pull()
+                    }
+                }
+            }
+        }
+
+        // ── Stage 2 ───────────────────────────────────────────────────────────
+        stage('Build & Push') {
+            steps {
+                script {
+                    docker.withRegistry(
+                        "https://${ECR_REGISTRY}",
+                        "ecr:${AWS_REGION}:AWS_ACCESS_KEY_ID"
+                    ) {
+                        def appImage = docker.build("${ECR_REPO_BACKEND}:${IMAGE_TAG}")
+                        appImage.push()
+                        appImage.push('latest')
+                    }
+                }
+            }
+        }
+
+        // ── Stage 3 ───────────────────────────────────────────────────────────
+        stage('Capture Current State + Fetch Logs') {
+            steps {
+                script {
+                    docker.image("${TOOLS_IMAGE}").inside(
+                        "--entrypoint='' " +
+                        "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                        "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                        "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                    ) {
+                        sh """
+                            set -e
+                            echo "============================================================"
+                            echo "  PRE-DEPLOY SNAPSHOT"
+                            echo "  Deploy mode : ${params.DEPLOY_MODE}"
+                            echo "============================================================"
+
+                            BACKEND_OLD_ARN=\$(aws ecs describe-services \
+                                --cluster ${ECS_CLUSTER} \
+                                --services ${ECS_SERVICE_BACKEND} \
+                                --region ${AWS_REGION} \
+                                --query 'services[0].taskDefinition' --output text)
+                            BACKEND_OLD_REV=\$(echo "\$BACKEND_OLD_ARN" | awk -F: '{print \$NF}')
+                            echo "  [backend]  active task def : \$BACKEND_OLD_ARN  (rev: \$BACKEND_OLD_REV)"
+                            echo "\$BACKEND_OLD_ARN" > "\${WORKSPACE}/backend_old_arn.txt"
+
+                            BACKEND_TASK_ID=\$(aws ecs list-tasks \
+                                --cluster ${ECS_CLUSTER} \
+                                --service-name ${ECS_SERVICE_BACKEND} \
+                                --region ${AWS_REGION} \
+                                --query 'taskArns[0]' --output text 2>/dev/null || echo "None")
+                            if [ "\$BACKEND_TASK_ID" != "None" ] && [ -n "\$BACKEND_TASK_ID" ]; then
+                                BACKEND_TASK_SHORT=\$(echo "\$BACKEND_TASK_ID" | awk -F/ '{print \$NF}')
+                                echo "  [backend]  running task   : \$BACKEND_TASK_SHORT"
+                                echo "  [backend]  last 30 log lines (before deploy):"
+                                aws logs get-log-events \
+                                    --log-group-name ${LOG_GROUP_BACKEND} \
+                                    --log-stream-name "backend/backend/\${BACKEND_TASK_SHORT}" \
+                                    --region ${AWS_REGION} \
+                                    --limit 30 \
+                                    --query 'events[*].message' \
+                                    --output text || echo "  (logs not yet available)"
+                            else
+                                echo "  [backend]  no running tasks found"
+                            fi
+
+                            echo "============================================================"
+                        """
+                    }
+                }
+            }
+        }
+
+        // ── Stage 4 ───────────────────────────────────────────────────────────
+        stage('Register Task Def') {
+            steps {
+                script {
+                    docker.image("${TOOLS_IMAGE}").inside(
+                        "--entrypoint='' " +
+                        "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                        "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                        "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                    ) {
+                        def j = { def v -> (v == null ? '' : v.toString()).replace('\\', '\\\\').replace('"', '\\"') }
+                        writeFile file: 'new_env.json', text: (
+                            '[' +
+                            '{"name":"NODE_ENV","value":"'                             + j(env.NODE_ENV)                             + '"},' +
+                            '{"name":"LOG_LEVEL","value":"'                            + j(env.LOG_LEVEL)                            + '"},' +
+                            '{"name":"CELERY_BROKER_SOCKET_TIMEOUT","value":"'         + j(env.CELERY_BROKER_SOCKET_TIMEOUT)         + '"},' +
+                            '{"name":"CELERY_RESULT_SOCKET_TIMEOUT","value":"'         + j(env.CELERY_RESULT_SOCKET_TIMEOUT)         + '"},' +
+                            '{"name":"CELERY_BROKER_SOCKET_CONNECT_TIMEOUT","value":"' + j(env.CELERY_BROKER_SOCKET_CONNECT_TIMEOUT) + '"},' +
+                            '{"name":"CELERY_BROKER_HEALTH_CHECK_INTERVAL","value":"'  + j(env.CELERY_BROKER_HEALTH_CHECK_INTERVAL)  + '"},' +
+                            '{"name":"AWS_S3_PRESIGNED_URL_EXPIRY","value":"'          + j(env.AWS_S3_PRESIGNED_URL_EXPIRY)          + '"},' +
+                            '{"name":"LITELLM_LOCAL_MODEL_COST_MAP","value":"'         + j(env.LITELLM_LOCAL_MODEL_COST_MAP)         + '"},' +
+                            '{"name":"RATE_LIMIT_AUTH_REGISTER","value":"'             + j(env.RATE_LIMIT_AUTH_REGISTER)             + '"},' +
+                            '{"name":"RATE_LIMIT_AUTH_CONFIRM","value":"'              + j(env.RATE_LIMIT_AUTH_CONFIRM)              + '"},' +
+                            '{"name":"RATE_LIMIT_AUTH_LOGIN","value":"'                + j(env.RATE_LIMIT_AUTH_LOGIN)                + '"},' +
+                            '{"name":"RATE_LIMIT_AUTH_REFRESH","value":"'              + j(env.RATE_LIMIT_AUTH_REFRESH)              + '"},' +
+                            '{"name":"SOURCE_LOCAL_DOWNLOAD_DIR","value":"'            + j(env.SOURCE_LOCAL_DOWNLOAD_DIR)            + '"},' +
+                            '{"name":"S3_DOWNLOAD_CHUNK_SIZE_MB","value":"'            + j(env.S3_DOWNLOAD_CHUNK_SIZE_MB)            + '"},' +
+                            '{"name":"SOURCE_MAX_FILE_SIZE_MB","value":"'              + j(env.SOURCE_MAX_FILE_SIZE_MB)              + '"},' +
+                            '{"name":"SOURCE_LINK_MAX_FILE_SIZE_MB","value":"'         + j(env.SOURCE_LINK_MAX_FILE_SIZE_MB)         + '"},' +
+                            '{"name":"SOURCE_BULK_MAX_FILES","value":"'                + j(env.SOURCE_BULK_MAX_FILES)                + '"},' +
+                            '{"name":"DB_AUTO_CREATE","value":"'                       + j(env.DB_AUTO_CREATE)                       + '"},' +
+                            '{"name":"SEED_SUPER_ADMIN_ENABLED","value":"'             + j(env.SEED_SUPER_ADMIN_ENABLED)             + '"},' +
+                            '{"name":"SUPER_ADMIN_EMAIL","value":"'                    + j(env.SUPER_ADMIN_EMAIL)                    + '"},' +
+                            '{"name":"SUPER_ADMIN_PASSWORD","value":"'                 + j(env.SUPER_ADMIN_PASSWORD)                 + '"},' +
+                            '{"name":"SUPER_ADMIN_NAME","value":"'                     + j(env.SUPER_ADMIN_NAME)                     + '"},' +
+                            '{"name":"DEFAULT_TENANT_SLUG","value":"'                  + j(env.DEFAULT_TENANT_SLUG)                  + '"},' +
+                            '{"name":"FRONTEND_BASE_URL","value":"'                    + j(env.FRONTEND_BASE_URL)                    + '"},' +
+                            '{"name":"INVITATION_EXPIRY_DAYS","value":"'               + j(env.INVITATION_EXPIRY_DAYS)               + '"}' +
+                            ']'
+                        )
+
+                        sh """
+                            set -e
+
+                            echo "==> Fetching latest revision for ${TASK_DEF_BACKEND}..."
+                            TASK_DEF_JSON=\$(aws ecs describe-task-definition \
+                                --task-definition "${TASK_DEF_BACKEND}" \
+                                --region ${AWS_REGION} \
+                                --output json)
+
+                            if [ "${params.DEPLOY_MODE}" = "env-and-code" ]; then
+                                echo "==> Merging env vars and setting image to :latest..."
+                                jq empty "\${WORKSPACE}/new_env.json"
+                                echo "  JSON valid. \$(jq length "\${WORKSPACE}/new_env.json") vars to merge."
+                                echo "\$TASK_DEF_JSON" \
+                                | jq --slurpfile new_env "\${WORKSPACE}/new_env.json" '
+                                    .taskDefinition as \$td |
+                                    (\$td.containerDefinitions[0].environment | map({(.name): .value}) | add // {}) as \$existing_map |
+                                    (\$new_env[0] | map({(.name): .value}) | add) as \$new_map |
+                                    ((\$existing_map * \$new_map) | to_entries | map({name: .key, value: .value})) as \$merged |
+                                    \$td |
+                                    del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt) |
+                                    .containerDefinitions[0].environment = \$merged |
+                                    .containerDefinitions[0].image = "${ECR_REPO_BACKEND}:latest"
+                                ' > /tmp/new_backend_taskdef.json
+                            else
+                                echo "==> code-only: preserving env, setting image to :latest..."
+                                echo "\$TASK_DEF_JSON" \
+                                | jq '
+                                    .taskDefinition |
+                                    del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                                        .compatibilities, .registeredAt, .registeredBy, .deregisteredAt) |
+                                    .containerDefinitions[0].image = "${ECR_REPO_BACKEND}:latest"
+                                ' > /tmp/new_backend_taskdef.json
+                            fi
+
+                            echo "==> Registering new revision for ${TASK_DEF_BACKEND}..."
+                            BACKEND_NEW_ARN=\$(aws ecs register-task-definition \
+                                --region ${AWS_REGION} \
+                                --cli-input-json "file:///tmp/new_backend_taskdef.json" \
+                                --output json \
+                            | jq -r '.taskDefinition.taskDefinitionArn')
+                            echo "\$BACKEND_NEW_ARN" > "\${WORKSPACE}/backend_new_arn.txt"
+
+                            echo "------------------------------------------------------------"
+                            echo "  NEW backend ARN : \$BACKEND_NEW_ARN"
+                            echo "------------------------------------------------------------"
+                        """
+                    }
+                }
+            }
+        }
+
+        // ── Stage 5 ───────────────────────────────────────────────────────────
+        stage('Deploy Backend + Wait') {
+            steps {
+                script {
+                    docker.image("${TOOLS_IMAGE}").inside(
+                        "--entrypoint='' " +
+                        "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                        "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                        "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                    ) {
+                        sh """
+                            set -e
+
+                            BACKEND_ARN=\$(cat "\${WORKSPACE}/backend_new_arn.txt" 2>/dev/null || true)
+                            [ -z "\$BACKEND_ARN" ] && echo "ERROR: backend_new_arn.txt missing" && exit 1
+
+                            echo "==> Updating backend service with task def: \$BACKEND_ARN"
+                            aws ecs update-service \
+                                --region ${AWS_REGION} \
+                                --cluster ${ECS_CLUSTER} \
+                                --service ${ECS_SERVICE_BACKEND} \
+                                --task-definition "\$BACKEND_ARN" \
+                                --force-new-deployment \
+                                --query 'service.{service:serviceName,taskDef:taskDefinition,status:status}' \
+                                --output table
+
+                            echo "==> Waiting for backend stability (polling every 15 s, max 10 min)..."
+                            ELAPSED=0
+                            while [ \$ELAPSED -lt 600 ]; do
+                                SVC=\$(aws ecs describe-services \
+                                    --cluster ${ECS_CLUSTER} --services ${ECS_SERVICE_BACKEND} \
+                                    --region ${AWS_REGION} --query 'services[0]' --output json)
+                                RUNNING=\$(echo "\$SVC" | jq -r '.runningCount')
+                                DESIRED=\$(echo "\$SVC" | jq -r '.desiredCount')
+                                PRIMARY=\$(echo "\$SVC" | jq -r '.deployments[]|select(.status=="PRIMARY")')
+                                STATE=\$(echo "\$PRIMARY"    | jq -r '.rolloutState')
+                                ACTIVE_ARN=\$(echo "\$PRIMARY" | jq -r '.taskDefinition')
+                                REV=\$(echo "\$ACTIVE_ARN" | awk -F: '{print \$NF}')
+                                echo "  [\${ELAPSED}s] \${RUNNING}/\${DESIRED} running | \${STATE} | rev: \${REV}"
+                                [ "\$STATE" = "COMPLETED" ] && [ "\$RUNNING" = "\$DESIRED" ] && break
+                                [ "\$STATE" = "FAILED"    ] && echo "ECS rollback triggered — check CloudWatch logs" && exit 1
+                                sleep 15; ELAPSED=\$((ELAPSED+15))
+                            done
+                            [ \$ELAPSED -ge 600 ] && echo "TIMEOUT — backend did not stabilise" && exit 1
+
+                            if [ "\$ACTIVE_ARN" != "\$BACKEND_ARN" ]; then
+                                echo "ERROR: active ARN \$ACTIVE_ARN does not match expected \$BACKEND_ARN"
+                                exit 1
+                            fi
+
+                            echo "============================================================"
+                            echo "  BACKEND STABLE  |  \${RUNNING}/\${DESIRED} tasks running  |  rev: \${REV}"
+                            echo "============================================================"
+                            aws ecs describe-services \
+                                --cluster ${ECS_CLUSTER} \
+                                --services ${ECS_SERVICE_BACKEND} \
+                                --region ${AWS_REGION} \
+                                --query 'services[0].deployments' \
+                                --output table
+                        """
+                    }
+                }
+            }
+        }
+
+        // ── Stage 6 ───────────────────────────────────────────────────────────
+        stage('Post-Deploy Summary + Logs') {
+            steps {
+                script {
+                    docker.image("${TOOLS_IMAGE}").inside(
+                        "--entrypoint='' " +
+                        "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                        "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                        "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                    ) {
+                        sh """
+                            set -e
+
+                            OLD_ARN=\$(cat "\${WORKSPACE}/backend_old_arn.txt" 2>/dev/null || echo "unknown")
+                            NEW_ARN=\$(cat "\${WORKSPACE}/backend_new_arn.txt" 2>/dev/null || echo "unknown")
+                            OLD_REV=\$(echo "\$OLD_ARN" | awk -F: '{print \$NF}')
+                            NEW_REV=\$(echo "\$NEW_ARN" | awk -F: '{print \$NF}')
+
+                            echo "============================================================"
+                            echo "  SERVICE    : ${ECS_SERVICE_BACKEND}"
+                            echo "  last_rev   : \$OLD_REV  (\$OLD_ARN)"
+                            echo "  latest_rev : \$NEW_REV  (\$NEW_ARN)"
+
+                            RUNNING_ARN=\$(aws ecs describe-services \
+                                --cluster ${ECS_CLUSTER} --services ${ECS_SERVICE_BACKEND} \
+                                --region ${AWS_REGION} \
+                                --query 'services[0].deployments[?status==`PRIMARY`].taskDefinition' \
+                                --output text)
+                            RUNNING_REV=\$(echo "\$RUNNING_ARN" | awk -F: '{print \$NF}')
+                            echo "  running_rev: \$RUNNING_REV  (\$RUNNING_ARN)"
+
+                            if [ "\$RUNNING_ARN" = "\$NEW_ARN" ]; then
+                                echo "  status     : OK — service is running latest_rev"
+                            else
+                                echo "  status     : MISMATCH — service running \$RUNNING_REV, expected \$NEW_REV"
+                            fi
+
+                            echo "------------------------------------------------------------"
+                            echo "  ENV VARS in latest_rev (\$NEW_REV):"
+                            echo "------------------------------------------------------------"
+                            aws ecs describe-task-definition \
+                                --task-definition "\$NEW_ARN" \
+                                --region ${AWS_REGION} \
+                                --query 'taskDefinition.containerDefinitions[0].environment[*].{name:name,value:value}' \
+                                --output table
+
+                            echo "------------------------------------------------------------"
+                            echo "  LOGS (last 50 lines per task):"
+                            echo "------------------------------------------------------------"
+                            TASK_ARNS=\$(aws ecs list-tasks \
+                                --cluster ${ECS_CLUSTER} \
+                                --service-name ${ECS_SERVICE_BACKEND} \
+                                --region ${AWS_REGION} \
+                                --query 'taskArns[]' --output text)
+
+                            if [ -z "\$TASK_ARNS" ]; then
+                                echo "  no running tasks found"
+                            else
+                                for TASK_ARN in \$TASK_ARNS; do
+                                    TASK_ID=\$(echo "\$TASK_ARN" | awk -F/ '{print \$NF}')
+                                    STREAM="backend/backend/\$TASK_ID"
+                                    echo "  task   : \$TASK_ID"
+                                    echo "  stream : ${LOG_GROUP_BACKEND}/\$STREAM"
+                                    aws logs get-log-events \
+                                        --log-group-name "${LOG_GROUP_BACKEND}" \
+                                        --log-stream-name "\$STREAM" \
+                                        --region ${AWS_REGION} \
+                                        --limit 50 \
+                                        --query 'events[*].message' \
+                                        --output text || echo "  (no log events yet)"
+                                done
+                            fi
+                            echo "============================================================"
+                        """
+                    }
+                }
+            }
+        }
+
+    }
+
+    post {
+        success {
+            script {
+                def oldBackend = ""
+                def newBackend = ""
+                try { oldBackend = readFile("${WORKSPACE}/backend_old_arn.txt").trim() } catch (e) {}
+                try { newBackend = readFile("${WORKSPACE}/backend_new_arn.txt").trim() } catch (e) {}
+
+                echo """
+============================================================
+  DEPLOY SUMMARY — SUCCESS
+  Backend : ${oldBackend ?: 'unknown'} → ${newBackend ?: 'unknown'}
+============================================================"""
+
+                try { archiveArtifacts artifacts: '**/new_backend_taskdef.json', allowEmptyArchive: true } catch (e) {}
+            }
+        }
+        failure {
+            echo "FAILED — check the red stage above. Backend service may be in rollback."
+        }
+        cleanup {
+            script {
+                sh """
+                    rm -f "\${WORKSPACE}/backend_old_arn.txt" "\${WORKSPACE}/backend_new_arn.txt" \
+                          "\${WORKSPACE}/new_env.json" \
+                          /tmp/new_backend_taskdef.json || true
+                """
+                // Uncomment when Build & Push stage is re-enabled
+                sh """
+                    docker rmi ${ECR_REPO_BACKEND}:${IMAGE_TAG} || true
+                    docker rmi ${ECR_REPO_BACKEND}:latest       || true
+                    docker builder prune -af                    || true
+                """
+            }
+        }
+    }
+
+}

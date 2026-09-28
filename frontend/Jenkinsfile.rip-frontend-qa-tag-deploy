@@ -1,0 +1,148 @@
+// RIP Frontend — Build, Push :qa-latest to QA ECR, Deploy to ECS (QA)
+// All service-specific values are in the CONFIGURATION block only.
+// To reuse for another service, change only that block.
+//
+// Pushes build-<N> + qa-latest to the dedicated QA ECR repo (rip/qa/interface-layer).
+//
+// Jenkins job setup:
+//   SCM         → Gerrit: p1821.1_rip_frontend | branch of your choice
+//   Script Path → Jenkinsfile.rip-frontend-qa-tag-deploy
+//   Credentials → AWS_ACCESS_KEY_ID (AWS credentials binding)
+
+pipeline {
+
+    agent any
+
+    environment {
+
+        // ── CONFIGURATION — change this block per service ────────
+
+        APP_NAME       = 'frontend'
+        APP_REPO       = 'p1821.1_rip_frontend'
+        APP_BRANCH     = 'mvp_development'
+        CONTAINER_PORT = '80'
+
+        ECS_CLUSTER    = 'rip-rip-qa-cluster'
+        AWS_ENV        = 'rip-qa'
+
+        // ── AWS ──────────────────────────────────────────────────
+
+        AWS_REGION     = 'ap-northeast-1'
+        AWS_ACCOUNT_ID = '404210401723'
+
+        // ── Frontend build-time env vars (baked into JS bundle by Vite) ─
+        VITE_API_BASE_URL = 'https://api-rip-qa.bjitgroup.com/api/v1'
+        VITE_CDN_URL      = 'https://d2gvx0seuo7uny.cloudfront.net/'
+
+        // ── Derived — do not change ──────────────────────────────
+
+        ECR_REGISTRY  = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPO      = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/rip/qa/interface-layer"
+        ECS_SERVICE   = "rip-${AWS_ENV}-svc-${APP_NAME}"
+        IMAGE_TAG     = "build-${BUILD_NUMBER}"
+        QA_STABLE_TAG = 'qa-latest'
+        TOOLS_IMAGE   = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/infra/common-tools:latest"
+
+        AWS_CREDS    = credentials('AWS_ACCESS_KEY_ID')
+    }
+
+    stages {
+
+        stage('Pull Tools Image') {
+            steps {
+                script {
+                    docker.withRegistry(
+                        "https://${ECR_REGISTRY}",
+                        "ecr:${AWS_REGION}:AWS_ACCESS_KEY_ID"
+                    ) {
+                        docker.image("${TOOLS_IMAGE}").pull()
+                    }
+                }
+            }
+        }
+
+        // Build frontend image and push to the dedicated QA ECR repo.
+        // Pushes two tags: build-<N> (immutable audit trail) + qa-latest (ECS pulls this).
+        stage('Build & Push') {
+            steps {
+                script {
+                    docker.withRegistry(
+                        "https://${ECR_REGISTRY}",
+                        "ecr:${AWS_REGION}:AWS_ACCESS_KEY_ID"
+                    ) {
+                        def appImage = docker.build(
+                            "${ECR_REPO}:${IMAGE_TAG}",
+                            "--build-arg VITE_API_BASE_URL=${VITE_API_BASE_URL} " +
+                            "--build-arg VITE_CDN_URL=${VITE_CDN_URL} " +
+                            "."
+                        )
+                        appImage.push()
+                        appImage.push("${QA_STABLE_TAG}")
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to ECS') {
+            steps {
+                script {
+                    docker.image("${TOOLS_IMAGE}").inside(
+                        "--entrypoint='' " +
+                        "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                        "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                        "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                    ) {
+                        sh """
+                            aws ecs update-service \
+                                --region ${AWS_REGION} \
+                                --cluster ${ECS_CLUSTER} \
+                                --service ${ECS_SERVICE} \
+                                --force-new-deployment \
+                                --query 'service.{service:serviceName,status:status}' \
+                                --output table
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Wait for Stability') {
+            steps {
+                script {
+                    docker.image("${TOOLS_IMAGE}").inside(
+                        "--entrypoint='' " +
+                        "-e AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR} " +
+                        "-e AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW} " +
+                        "-e AWS_DEFAULT_REGION=${env.AWS_REGION}"
+                    ) {
+                        sh """
+                            aws ecs wait services-stable \
+                                --region ${AWS_REGION} \
+                                --cluster ${ECS_CLUSTER} \
+                                --services ${ECS_SERVICE}
+                            echo "Stable — ${ECR_REPO}:${IMAGE_TAG} / ${QA_STABLE_TAG}"
+                        """
+                    }
+                }
+            }
+        }
+
+    }
+
+    post {
+        success {
+            echo "Deployed ${ECR_REPO}:${IMAGE_TAG} / ${QA_STABLE_TAG} to ${ECS_SERVICE}"
+        }
+        failure {
+            echo "Deployment FAILED — check logs above"
+        }
+        cleanup {
+            sh """
+                docker rmi ${ECR_REPO}:${IMAGE_TAG}     || true
+                docker rmi ${ECR_REPO}:${QA_STABLE_TAG} || true
+                docker builder prune -af                 || true
+            """
+        }
+    }
+
+}

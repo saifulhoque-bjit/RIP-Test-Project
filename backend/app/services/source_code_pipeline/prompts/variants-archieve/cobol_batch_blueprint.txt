@@ -1,0 +1,90 @@
+# **LANGUAGE FORENSIC ADDENDUM: COBOL — BATCH BLUEPRINT**
+*(Injected into Universal Core V3 at the language_specific_tiers slot)**
+
+---
+
+## **L.1 JCL Step Boundary Mapping**
+**MANDATORY:** Every JCL EXEC step defines a discrete processing unit. Each step MUST be inventoried separately — it maps directly to a modern job step or pipeline stage.
+
+| Step Name | PGM / Proc | STEPLIB | SYSOUT Class | Key DD Names | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [STEP1] | [PGM=MYPROG] | [DSN=MYLIB.LOAD] | [*] | [INPUT, OUTPUT, SYSIN] | [What this step does] |
+
+**DD Name Extraction (for each step):**
+* **DSN (Dataset Name):** Extract the physical dataset name — this is the file contract (input or output).
+* **DISP:** Document `(status, normal-disp, abnormal-disp)` — identifies if the file is created, shared, or deleted.
+* **DCB / LRECL / RECFM / BLKSIZE:** Extract record format and length — these define the file schema.
+* **COND Parameters:** Document `COND=(code, operator, stepname)` — these are conditional execution gates between steps.
+
+---
+
+## **L.2 COBOL Paragraph Execution Flow**
+**MANDATORY:** COBOL PROCEDURE DIVISION paragraphs are the equivalent of job steps and functions. The PERFORM call hierarchy MUST be fully traced.
+
+| Paragraph Name | Called From | PERFORM Type | Business Role |
+| :--- | :--- | :--- | :--- |
+| [0000-MAIN] | [Top-level] | [THRU / UNTIL / TIMES] | [Main control paragraph] |
+| [1000-INIT] | [0000-MAIN] | [PERFORM once] | [Initialization — open files, set defaults] |
+
+* **PERFORM UNTIL:** Extract the exact condition (`UNTIL WS-EOF = 'Y'`) — this is the batch loop termination logic.
+* **PERFORM THRU:** When `PERFORM A THRU B` is used, document paragraphs A through B as an atomic execution group.
+* **GO TO:** Flag every `GO TO` statement — these are unstructured control transfers that require special handling in modern structured code.
+* **EVALUATE (COBOL CASE):** Extract every `WHEN` branch in `EVALUATE` statements — these are the routing decisions in the processing logic.
+
+---
+
+## **L.3 VSAM / Sequential File Structure**
+**MANDATORY:** Every file defined in the ENVIRONMENT DIVISION MUST be fully decomposed into its schema.
+
+**File Definition (FD Entry):**
+| File Name (FD) | Organization | Access Mode | Record Size | Key Field | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [FD-FILE-NAME] | [SEQUENTIAL / INDEXED / RELATIVE] | [SEQUENTIAL / RANDOM / DYNAMIC] | [e.g., RECORD CONTAINS 200 CHARACTERS] | [e.g., EMP-ID] | [What data this file holds] |
+
+**Record Layout (01-level under FD):**
+
+**[ANTI-TRUNCATION GUARDRAIL — COBOL EDITION]:** Count every field at every level (01, 05, 10, etc.) in the FD record layout. Print the field count before the table. Generate one row per field. ZERO omissions — FILLER fields must be documented as schema gaps.
+
+| Level | Field Name | PIC Clause | OCCURS? | REDEFINES? | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [01/05/10] | [FIELD-NAME] | [PIC X(20) / PIC 9(5)V99] | [Y: n TIMES] | [Y: redefines FIELD-X] | [What this field represents] |
+
+---
+
+## **L.4 CICS Transaction Lifecycle**
+*Apply this section only if `EXEC CICS` blocks are present in `masked_regions`.*
+
+| CICS Command | Arguments | Trigger Condition | Business Meaning |
+| :--- | :--- | :--- | :--- |
+| [EXEC CICS LINK / XCTL / RETURN] | [PROGRAM('PROG1') COMMAREA(ws-comm-area)] | [After record validation] | [Passes control to downstream CICS program] |
+
+* **COMMAREA Contract:** Document the COMMAREA layout used in `EXEC CICS LINK/XCTL` calls — this is the inter-program data contract and maps to a modern service request/response DTO.
+* **EXEC CICS READ/WRITE/REWRITE:** Extract VSAM file operations via CICS — document the dataset name, key field, and operation.
+* **EXEC CICS ABEND:** Document abend codes — these are hard failure signals that trigger rollback.
+* **EXEC CICS RETURN TRANSID:** Identifies the next transaction in a pseudo-conversational flow.
+
+---
+
+## **L.5 DB2 Cursor & Embedded SQL Patterns**
+*Apply this section only if `EXEC SQL` blocks are present in `masked_regions`.*
+
+**[ANTI-TRUNCATION GUARDRAIL — SQL EDITION]:** Extract EVERY column in every `SELECT` statement. Do not summarize with `SELECT *` — list the literal column names.
+
+| SQL Type | Cursor / Statement Name | Literal SQL (from masked_regions) | Host Variables | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| [DECLARE CURSOR / INSERT / UPDATE / DELETE / SELECT INTO] | [CURSOR-NAME / N/A] | [Exact SQL from EXEC SQL block] | [:WS-EMP-ID, :WS-NAME] | [What this query achieves] |
+
+* **DECLARE CURSOR:** Document the full `DECLARE ... CURSOR FOR SELECT ...` — this is the server-side query contract.
+* **OPEN / FETCH / CLOSE cycle:** Trace the full cursor lifecycle and the loop that processes fetched rows.
+* **SELECT INTO:** These are single-row lookups — document the target host variables.
+* **INSERT / UPDATE / DELETE:** Extract the full DML with all WHERE clause predicates.
+* **SQLCODE / SQLSTATE Checks:** Document every `IF SQLCODE = 0 / -1 / +100` check — `+100` (row not found) and `-811` (duplicate key) are critical business cases.
+
+---
+
+## **L.6 COPY Book Dependency Chain**
+**MANDATORY:** List ALL `COPY` and `INCLUDE` statements resolved into this program. Each COPY book is a shared data contract that may be reused across multiple programs.
+
+| COPY Book Name | Division / Section Used In | Purpose | Fields Contributed |
+| :--- | :--- | :--- | :--- |
+| [COPYBOOK-NAME] | [WORKING-STORAGE / LINKAGE / FD] | [e.g., Standard employee record layout] | [List key field names] |

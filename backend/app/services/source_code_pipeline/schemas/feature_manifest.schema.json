@@ -1,0 +1,419 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "feature_manifest.schema.json",
+  "title": "Stage 5a Feature Manifest Schema",
+  "description": "Intermediate artifact produced by Stage 5a. Contains exactly ONE Feature per MFU (1-MFU = 1-Feature principle). Each Feature covers the entire MFU screen (bounding_box.zone_id='FULL_SCREEN'). Enriched with business architecture fields (functions, category, business_context, success_criteria) aligned with the Module \u2192 Feature \u2192 Function hierarchy from the business architecture specification. Consumed by Stage 5b which populates the Feature with User Stories to produce the final features_stories.json.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "mfu_id",
+    "module_id",
+    "module_name",
+    "source_path",
+    "technology_tag",
+    "l1_source",
+    "features"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "5a.2",
+      "description": "Schema version for the Feature Manifest intermediate artifact. Bumped to 5a.2 for business architecture enrichment fields."
+    },
+    "mfu_id": {
+      "type": "string",
+      "description": "Parent MFU identifier (e.g. MFU-001). Links back to Stage 4 config_naming_map.json.",
+      "examples": [
+        "MFU-001",
+        "MFU-002A"
+      ]
+    },
+    "mfu_seq": {
+      "type": "string",
+      "description": "Zero-padded 3-digit sequence extracted from mfu_id (e.g. 001). Used to derive Feature IDs.",
+      "examples": [
+        "001",
+        "002"
+      ]
+    },
+    "module_id": {
+      "type": "string",
+      "description": "Module identifier (e.g. MOD-ANCES). Matches the Module node already present in Neo4j.",
+      "examples": [
+        "MOD-ANCES"
+      ]
+    },
+    "module_name": {
+      "type": "string",
+      "description": "Fallback/provisional module name.",
+      "examples": [
+        "Ancestor Management"
+      ]
+    },
+    "module_business_name": {
+      "type": "string",
+      "description": "Refined DDD-quality domain name, hydrated from Stage 2.7 module_manifest.json."
+    },
+    "module_business_description": {
+      "type": "string",
+      "description": "Refined business capability description, hydrated from Stage 2.7 module_manifest.json."
+    },
+    "source_path": {
+      "type": "string",
+      "description": "Origin path of the primary SRS document, relative to project root.",
+      "examples": [
+        "modules/MOD-ANCES/stage4_specs/MFU-001/1_UIBlueprint_w_fa_ances_infree.md"
+      ]
+    },
+    "technology_tag": {
+      "type": "string",
+      "description": "Source technology paradigm (e.g. PowerBuilder, VB6, COBOL).",
+      "examples": [
+        "PowerBuilder"
+      ]
+    },
+    "l1_source": {
+      "$ref": "#/definitions/L1Source",
+      "description": "L1 traceability \u2014 the source document node for this derivation chain."
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "description": "List of Features derived from the SRS. Under the 1-MFU=1-Feature rule, this array will contain exactly 1 item.",
+      "items": {
+        "$ref": "#/definitions/ManifestFeature"
+      }
+    },
+    "generation_metadata": {
+      "$ref": "#/definitions/GenerationMetadata",
+      "description": "Tracking metadata from the generation run."
+    }
+  },
+  "definitions": {
+    "L1Source": {
+      "type": "object",
+      "required": [
+        "id",
+        "document_type",
+        "path",
+        "mfu_id"
+      ],
+      "additionalProperties": false,
+      "description": "L1 traceability node \u2014 the top-level source document.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this source document node in Neo4j."
+        },
+        "document_type": {
+          "type": "string",
+          "enum": [
+            "SRS_UIBlueprint",
+            "SRS_APIContracts",
+            "SRS_BatchBlueprint"
+          ],
+          "description": "Classification of the source document."
+        },
+        "path": {
+          "type": "string",
+          "description": "File path relative to project root."
+        },
+        "screen_id": {
+          "type": "string",
+          "description": "SRS-derived Screen ID. Present for UIBlueprint and APIContracts documents."
+        },
+        "mfu_id": {
+          "type": "string",
+          "description": "Parent MFU ID."
+        }
+      }
+    },
+    "BoundingBox": {
+      "type": "object",
+      "required": [
+        "id",
+        "zone_id",
+        "zone_label_en",
+        "screen_position",
+        "controls",
+        "s3_row_refs"
+      ],
+      "additionalProperties": false,
+      "description": "Screen zone mapping. For Stage 5a, zone_id is always FULL_SCREEN.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique bounding box ID."
+        },
+        "zone_id": {
+          "type": "string",
+          "description": "Symbolic zone identifier."
+        },
+        "zone_label_en": {
+          "type": "string",
+          "description": "English label for the zone."
+        },
+        "zone_label_jp": {
+          "type": "string",
+          "description": "Japanese label for the zone."
+        },
+        "screen_position": {
+          "type": "string",
+          "enum": [
+            "top",
+            "bottom",
+            "center",
+            "left",
+            "right",
+            "overlay",
+            "full"
+          ],
+          "description": "Canonical screen region."
+        },
+        "controls": {
+          "type": "array",
+          "description": "Control names from S.3 that belong to this bounding box zone.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "s3_row_refs": {
+          "type": "array",
+          "description": "S.3 section IDs (L2 node IDs) that this bounding box encompasses.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "highlight_color": {
+          "type": "string",
+          "description": "Hex color code for UI overlay rendering.",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        }
+      }
+    },
+    "FeatureFunction": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "l2_source_ref"
+      ],
+      "additionalProperties": false,
+      "description": "A sub-operation mapped 1:1 to an S.5 event. Sets the ceiling for Stage 5b story generation.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Function ID (e.g. MOD-001-F1-FN1).",
+          "pattern": "^[A-Z][A-Z0-9-]+-F\\d+-FN\\d+$"
+        },
+        "label": {
+          "type": "string",
+          "description": "Concise business sub-feature TITLE (one line) using domain vocabulary; verbatim event token retained in trailing parentheses for traceability."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional 2-3 sentence business explanation of the sub-feature (what the user can do / what the system delivers), grounded in the S.5 event evidence. Populated by the Stage-5a function-label polish pass; absent when polish is disabled."
+        },
+        "l2_source_ref": {
+          "type": "string",
+          "description": "L2 ID of the S.5 event or API endpoint this function maps to."
+        }
+      }
+    },
+    "BusinessContext": {
+      "type": "object",
+      "required": [
+        "current_state",
+        "target_state"
+      ],
+      "additionalProperties": false,
+      "description": "Describes the legacy baseline and the modern target state.",
+      "properties": {
+        "current_state": {
+          "type": "string",
+          "description": "Description of the legacy artifact and its current user behavior."
+        },
+        "target_state": {
+          "type": "string",
+          "description": "Description of the modern equivalent (e.g. React component, REST API)."
+        }
+      }
+    },
+    "SRSEvidence": {
+      "type": "object",
+      "required": [
+        "l2_id",
+        "file_name",
+        "section_anchor",
+        "highlight_type",
+        "target_string"
+      ],
+      "additionalProperties": false,
+      "description": "Physical routing data for the UX split-window viewer. Populated deterministically by the Python Linker.",
+      "properties": {
+        "l2_id": {
+          "type": "string",
+          "description": "The logical L2 ID that triggered this mapping."
+        },
+        "file_name": {
+          "type": "string",
+          "description": "Physical file name (e.g. 1_UIBlueprint_w_azuhara.md)."
+        },
+        "section_anchor": {
+          "type": "string",
+          "description": "String for the UI to scroll to, e.g., 'S.5 Event #1'."
+        },
+        "highlight_type": {
+          "type": "string",
+          "enum": [
+            "section",
+            "row"
+          ],
+          "description": "Indicates whether the UI should highlight a whole section block or a specific table row."
+        },
+        "target_string": {
+          "type": "string",
+          "description": "The exact string the UI should highlight."
+        }
+      }
+    },
+    "ManifestFeature": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "description",
+        "source",
+        "l2_sources",
+        "category",
+        "functions",
+        "business_context",
+        "bounding_box",
+        "is_infrastructure"
+      ],
+      "additionalProperties": false,
+      "description": "The single Feature object produced by Stage 5a.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Feature ID in format [MOD]-F[#].",
+          "pattern": "^[A-Z][A-Z0-9-]+-F\\d+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Feature title derived from module_business_name."
+        },
+        "description": {
+          "type": "string",
+          "description": "One-paragraph description of the feature's business purpose."
+        },
+        "source": {
+          "type": "string",
+          "description": "Citation of the specific SRS document/section."
+        },
+        "l2_sources": {
+          "type": "array",
+          "minItems": 0,
+          "description": "L2 section IDs this Feature was derived from.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "Functional",
+            "Integration",
+            "Infrastructure",
+            "Report",
+            "Batch"
+          ],
+          "description": "Business architecture classification."
+        },
+        "functions": {
+          "type": "array",
+          "description": "Sub-functions mapped from S.5 events. Must be empty if is_infrastructure=true.",
+          "items": {
+            "$ref": "#/definitions/FeatureFunction"
+          }
+        },
+        "business_context": {
+          "$ref": "#/definitions/BusinessContext"
+        },
+        "success_criteria": {
+          "type": "array",
+          "description": "NFRs extracted from the SRS.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bounding_box": {
+          "$ref": "#/definitions/BoundingBox"
+        },
+        "srs_evidence": {
+          "type": "array",
+          "description": "Physical routing data mapping feature-level l2_sources to physical files and UI anchors. Populated by the post-generation linker.",
+          "items": {
+            "$ref": "#/definitions/SRSEvidence"
+          }
+        },
+        "is_infrastructure": {
+          "type": "boolean",
+          "description": "True if this feature is a utility, OS bridge, Win32 wrapper, or system-level NVO with no direct user-visible business value. If true, story_budget must be 0 and category must be 'Infrastructure'."
+        },
+        "condensation_note": {
+          "type": "string",
+          "description": "Required when is_infrastructure=true. Also used when a user-facing feature has bundled infrastructure content that is suppressed from story generation."
+        },
+        "srs_section_scope": {
+          "type": "array",
+          "description": "List of ALL SRS sections covering this MFU (full scope since 1 feature = full MFU). Stage 5b uses this for story derivation context.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "GenerationMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generator_model": {
+          "type": "string"
+        },
+        "iteration_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "final_status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "FAIL_PARSE_ERROR",
+            "PASS_DETERMINISTIC_FALLBACK",
+            "FAIL_CORRECTION_EXHAUSTED",
+            "FAIL_NO_PARSEABLE_OUTPUT"
+          ]
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "correction_applied": {
+          "type": "boolean",
+          "description": "True if at least one corrector pass was applied during generation."
+        },
+        "status_detail": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Structured detail bag for the final_status. Keys vary by status type."
+        },
+        "fallback_reason": {
+          "type": "string",
+          "description": "Human-readable explanation of why the deterministic fallback path was taken. Populated only when final_status=PASS_DETERMINISTIC_FALLBACK."
+        }
+      }
+    }
+  }
+}

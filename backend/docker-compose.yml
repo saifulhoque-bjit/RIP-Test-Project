@@ -1,0 +1,346 @@
+x-app-env: &app_env
+  POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+  NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/1}
+  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+
+x-app-build: &app_build
+  context: .
+  dockerfile: Dockerfile
+
+x-app-image: &app_image ${APP_IMAGE:-rip-app:v1.0.0}
+
+x-worker-common: &worker_common
+  build: *app_build
+  image: *app_image
+  restart: unless-stopped
+  stop_grace_period: 60s
+  environment: *app_env
+  env_file: .env
+  networks:
+    - rip_net
+  depends_on:
+    postgres:
+      condition: service_healthy
+    neo4j:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped 
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rip_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-rip_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - rip_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rip_user} -d ${POSTGRES_DB:-rip_dev}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  neo4j:
+    image: neo4j:5.26-community
+    restart: unless-stopped 
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-change_me}
+      NEO4J_PLUGINS: '["apoc"]'
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - rip_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: >-
+      redis-server
+      --tcp-keepalive 60
+      --timeout 0
+      --maxmemory 1gb
+      --maxmemory-policy noeviction
+      --save ""
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - rip_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  api:
+    build: *app_build
+    image: *app_image
+    restart: unless-stopped  
+    environment: *app_env
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./alembic:/app/alembic
+    networks:
+      - rip_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8000/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    command: >-
+      sh -c "python -m app.db.init_and_migrate && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app"
+
+  # The 9 named worker nodes below mirror the real production topology
+  # exactly (see app/core/celery_app.py's instance table) — same -n names,
+  # same -Q assignments, same -P/--concurrency — just co-located on one box
+  # instead of spread across 4 server instances. Celery's inspect() (used by
+  # /api/v1/queue/status) reports node identity/queues over the broker, so
+  # matching these 1:1 with prod is what makes local status output mean the
+  # same thing as server status output. No per-worker cpu/mem limits: the
+  # goal here is topology/observability parity, not load simulation.
+  i1_worker1:
+    <<: *worker_common
+    hostname: i1_worker1
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app.celery_app inspect ping -d i1_worker1@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: >-
+      celery -A app.core.celery_app.celery_app worker
+      --loglevel=info -P threads --concurrency=4
+      -n i1_worker1@%h -Q document_parsing,module_feature_generation
+
+  i1_worker2:
+    <<: *worker_common
+    hostname: i1_worker2
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app.celery_app inspect ping -d i1_worker2@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: >-
+      celery -A app.core.celery_app.celery_app worker
+      --loglevel=info -P threads --concurrency=4
+      -n i1_worker2@%h -Q user_story_generation
+
+  i2_worker1:
+    <<: *worker_common
+    hostname: i2_worker1
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app.celery_app inspect ping -d i2_worker1@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: >-
+      celery -A app.core.celery_app.celery_app worker
+      --loglevel=info -P threads --concurrency=4
+      -n i2_worker1@%h -Q document_parsing,incremental_update
+
+  i2_worker2:
+    <<: *worker_common
+    hostname: i2_worker2
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app.celery_app inspect ping -d i2_worker2@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: >-
+      celery -A app.core.celery_app.celery_app worker
+      --loglevel=info -P threads --concurrency=10
+      -n i2_worker2@%h -Q routing,parsing,neo4j_sync,notifications,maintenance
+
+  i3_worker1:
+    <<: *worker_common
+    hostname: i3_worker1
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app.celery_app inspect ping -d i3_worker1@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: >-
+      celery -A app.core.celery_app.celery_app worker
+      --loglevel=info -P threads --concurrency=3
+      -n i3_worker1@%h -Q module_feature_regeneration
+
+  i3_worker2:
+    <<: *worker_common
+    hostname: i3_worker2
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app.celery_app inspect ping -d i3_worker2@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: >-
+      celery -A app.core.celery_app.celery_app worker
+      --loglevel=info -P threads --concurrency=3
+      -n i3_worker2@%h -Q user_story_feedback_regeneration
+
+  i4_worker1:
+    <<: *worker_common
+    hostname: i4_worker1
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app.celery_app inspect ping -d i4_worker1@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # -P prefork (not threads, unlike every other worker above) — one Celery
+    # child OS process per concurrent task. --concurrency=5: up to five
+    # module-processing tasks run on this node at once (across all projects,
+    # not just within one). Modules of a single project are still forced
+    # sequential via one big chain() (see _run_pipeline_orchestrator in
+    # source_code_task.py); this only lets different projects' pipelines
+    # overlap. Dialed back from 6 -> 5 (was previously raised 1 -> 3 -> 6) —
+    # each prefork child is a separate OS process, so this does NOT reopen
+    # the single-process ConcurrentPipelineError guard in llm_client.py (that
+    # guard only rejects two pipeline runs landing in the SAME process). 5
+    # children on 2 cpus still relies mostly on I/O-wait (LLM calls) rather
+    # than genuine CPU parallelism — watch queue depth / box load
+    # (app/utils/queue_monitoring.py) and dial back further if concurrent
+    # children contend too hard for the 2 cpus.
+    #
+    # source_code_parsing (tasks.parse_code, the per-project orchestrator) is
+    # deliberately NOT consumed here — see i4_worker3 below. That task blocks
+    # inside its own body (async_result.get()) waiting for this worker's
+    # module-processing/persistence chain to finish, for up to
+    # TASK_SOURCE_CODE_PIPELINE_TIME_LIMIT (25h). Sharing one pool between the
+    # blocking orchestrator and the module tasks it blocks on is a
+    # self-deadlock waiting to happen: once enough concurrent projects'
+    # orchestrator tasks fill every child in the pool, there are no children
+    # left free to run the module tasks those orchestrators are waiting on,
+    # and nothing ever progresses. This was the actual gap behind "5 projects
+    # in parallel" not being safe to rely on — fixed by giving the
+    # orchestrator its own dedicated pool (i4_worker3) instead.
+    #
+    # --max-tasks-per-child=25: each child handles up to 25 tasks — which may
+    # span different projects — before recycling. This means the source-code
+    # pipeline's process-wide LLM circuit-breaker (llm_client._BREAKER) can be
+    # shared across projects landing in the same child until it recycles —
+    # see app/core/celery_app.py's instance-4 notes for the tradeoff.
+    #
+    # --max-memory-per-child=614400 (600 MB, checked after each task
+    # completes — never kills a task mid-run): without this, an unbounded
+    # child can grow until the OOM killer steps in first, which produces an
+    # untraceable "WorkerLostError: exitcode 0" (cgroups intercepts the
+    # SIGKILL before billiard can read the real signal). Recycling
+    # proactively here trades a bit more process-restart overhead for a
+    # traceable, non-destructive recycle instead. 600 MB * 8 possible
+    # concurrent children (5 here + 3 on worker2) ≈ 4.8 GB worst case on this
+    # 8 GB box, leaving headroom for the OS/parent processes — tune from
+    # observed RSS (docker stats) rather than assuming this is exact.
+    command: >-
+      celery -A app.core.celery_app.celery_app worker
+      --loglevel=info -P prefork --concurrency=5 --max-tasks-per-child=25
+      --max-memory-per-child=614400
+      -n i4_worker1@%h -Q source_code_processing,source_code_persistence
+
+  i4_worker2:
+    <<: *worker_common
+    hostname: i4_worker2
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app.celery_app inspect ping -d i4_worker2@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Same -P prefork + --concurrency=5 + --max-tasks-per-child=25 +
+    # --max-memory-per-child=614400 rationale as i4_worker1 above —
+    # source_code_feature_regeneration also drives LLMClient (Stage 5
+    # revise), so it shares the same tradeoff.
+    command: >-
+      celery -A app.core.celery_app.celery_app worker
+      --loglevel=info -P prefork --concurrency=5 --max-tasks-per-child=25
+      --max-memory-per-child=614400
+      -n i4_worker2@%h -Q source_code_feature_regeneration,source_code_cleanup
+
+  i4_worker3:
+    <<: *worker_common
+    hostname: i4_worker3
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app.celery_app inspect ping -d i4_worker3@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Dedicated pool for tasks.parse_code (the per-project source-code
+    # orchestrator) — kept off i4_worker1's pool on purpose. tasks.parse_code
+    # dispatches a project's module chain to source_code_processing/
+    # source_code_persistence and then blocks (async_result.get()) inside its
+    # own task body until that whole chain finishes, up to
+    # TASK_SOURCE_CODE_PIPELINE_TIME_LIMIT (25h) — see source_code_task.py's
+    # _run_pipeline_orchestrator. If this queue shared a pool with the module
+    # tasks it blocks on (as it used to), enough concurrent projects'
+    # orchestrator tasks would fill every child with nothing left to run the
+    # module tasks those orchestrators are waiting on — a self-deadlock, and
+    # the actual blocker behind "N projects in parallel" not being safe.
+    # --concurrency=5 here matches i4_worker1's module-processing pool so up
+    # to 5 projects' orchestrators can block concurrently without starving
+    # each other; no --max-tasks-per-child needed since this task never
+    # touches LLMClient directly (no circuit-breaker state to worry about
+    # sharing across recycled children).
+    command: >-
+      celery -A app.core.celery_app.celery_app worker
+      --loglevel=info -P prefork --concurrency=5
+      -n i4_worker3@%h -Q source_code_parsing
+
+  # Fires app/core/celery_app.py's beat_schedule (currently just the
+  # stale-SourceIngestion sweep) — no schedule entry does anything without
+  # a running beat process. Maps to Instance 2 in production (see that
+  # module's instance-table comment) — beat's load is negligible (one
+  # schedule check + send every STALE_INGESTION_SWEEP_INTERVAL_SECONDS), so
+  # it piggybacks on the smallest box rather than needing a dedicated one.
+  # Production does not yet run this process at all; add exactly one
+  # (never more than one across the whole deployment, or the schedule
+  # fires multiple times per interval).
+  beat:
+    <<: *worker_common
+    hostname: beat
+    command: >-
+      celery -A app.core.celery_app.celery_app beat
+      --loglevel=info
+
+volumes:
+  postgres_data:
+  neo4j_data:
+  redis_data:
+
+networks:
+  rip_net:
+    driver: bridge

@@ -1,0 +1,135 @@
+# **PROMPT: BATCH BLUEPRINT & DATA PIPELINE FORENSICS (UNIVERSAL CORE V3)**
+
+## **1. Purpose & Scope**
+This document defines the execution prompt for generating a functional blueprint for a Headless/Batch Migration Feature Unit (MFU). Because this MFU is on the `Batch-Track` or `Mixed-Track`, you must strictly ignore UI/UX design. You are mapping procedural execution, data lineage, error recovery, and I/O structures.
+
+## **2. Role Definition (System Persona)**
+You are a **Senior Batch & Data Modernization Architect**. Your expertise lies in translating legacy procedural logic, scheduled triggers, and file-based data flows into modern, cloud-native data pipelines. You do not summarize; you perform forensic extraction.
+
+## **3. Inputs & Contextual Variables**
+* **Project Context:** {project_name} ({project_id}) | **Module:** {module_name}
+* **MFU Identity:** {mfu_id} ({mfu_name})
+* **Execution Track:** {execution_track}
+* **Traceability Chain:** {traceability_chain}
+* **Risk Flags:** {risk_flags}
+* **Target Stack:** {backend} | {database}
+
+**[PARADIGM FORENSIC HINTS]**
+{paradigm_hints} 
+*(Note: Use these to identify language-specific step boundaries like JCL steps, COBOL paragraphs, or Shell script sections.)*
+
+**[SOURCE ARTIFACTS]**
+The raw legacy source code follows. It is provided as a multi-file payload. Each file is encapsulated within `<artifact id="filename"> ... </artifact>` tags.
+
+{artifacts_payload}
+
+---
+
+## **4. Core Forensic Rules**
+
+### **Rule 1 — Execution Sequence Alignment**
+The `job_steps` you define MUST strictly follow the topological order provided in the `{traceability_chain}`. You must explain how the control flow moves from the `batch_anchor` through its dependencies.
+
+### **Rule 2 — Anti-Truncation I/O Guardrail (MANDATORY)**
+For every `data_provider` or I/O artifact (Flat File, Table, VSAM, Queue):
+1. You MUST physically count the number of fields/columns defined in the legacy source code.
+2. You MUST inventory every field in the `data_io_mapping` section.
+**ZERO TRUNCATION.**
+
+### **Rule 3 — AST Spatial Traceability Mandate**
+**AST SPATIAL TRACEABILITY:** When citing Trace IDs or evidence, you MUST use the exact mathematical coordinates (`line_start`) provided in the `edges` array instead of guessing line numbers from text chunks.
+* **Logic/Steps Format:** `TRCE-BATCH-[MFU_ID]-[ArtifactID]-L[line_start]`
+* **Data/IO Format:** `TRCE-IO-[MFU_ID]-[ArtifactID]-L[line_start]`
+
+### **Rule 4 — Error & Recovery Logic**
+You MUST extract the legacy error handling behavior. Does the job perform a Rollback? Does it use Checkpoints? Does it send a specific return code to an orchestrator?
+
+### **Rule 5 — Masked Regions Extraction (MANDATORY)**
+Proprietary execution logic (e.g., `EXEC SQL`, CICS macros, dynamic copybooks) has been surgically isolated into the `landmine_details.masked_regions` array. You MUST actively scan these regions to extract the exact formulas, queries, and conditional logic for your `business_rules`. Do NOT ignore these blocks.
+
+### **Rule 6 — Multi-Artifact Synthesis (NEW)**
+You are receiving multiple files wrapped in `<artifact id="...">` XML tags. You MUST trace the procedural execution flow across ALL provided artifacts. If an artifact is provided in the payload but you do not include its logic in your output, you have failed the extraction.
+
+### **Rule 7 — Graph Alignment Rule (NEW)**
+The file listed in `{traceability_chain}` is the PRIMARY ANCHOR and contains the core business intent. All other files in the payload are SUBORDINATE UTILITIES. Your Executive Summary and Job Steps MUST begin by explaining the Primary Anchor.
+
+---
+
+{language_specific_tiers}
+
+---
+
+## **5. Output Format (Strict JSON)**
+
+Output ONLY valid JSON inside a strict Markdown ```json block. Do NOT hallucinate conversational text outside or inside this block. Your entire response must be parseable by a standard JSON parser extracting the contents of the Markdown fence.
+
+```json
+{
+  "artifacts_received": ["list of artifact IDs found in the XML payload"],
+  "primary_anchor": "The artifact ID matching the traceability_chain",
+  "blueprint_id": "BP-{mfu_id}",
+  "identity": {
+    "mfu_id": "{mfu_id}",
+    "mfu_name": "{mfu_name}",
+    "module_name": "{module_name}",
+    "pic": "Lead Modernization Architect"
+  },
+  "executive_summary": {
+    "business_mission": "A 2-sentence summary of the business requirement this batch job fulfills (Global English IELTS 5.5-6).",
+    "transaction_style": "e.g., Sequential Processing / High-Volume Ingestion",
+    "critical_requirement": "Identify one must-preserve behavior (e.g., 'Must maintain record-level audit trail')."
+  },
+  "operational_metadata": {
+    "execution_track": "{execution_track}",
+    "execution_trigger": "CRON | Event | File-Drop | Upstream-Job",
+    "risk_summary": "Map provided {risk_flags} to specific logic gaps found in the source."
+  },
+  "job_steps": [
+    {
+      "step_number": 1,
+      "step_name": "Modern name for step",
+      "processing_type": "Reader | Processor | Writer | Tasklet",
+      "description": "Functional explanation of this logic boundary.",
+      "business_rules": [
+        {
+          "rule_name": "e.g., Interest Calculation",
+          "logic_literal": "Exact formula or conditional logic from source OR masked_regions",
+          "traceability_key": "TRCE-BATCH-MFU01-CBL01-L45"
+        }
+      ],
+      "legacy_source_artifacts": ["Artifact IDs"],
+      "traceability_keys": ["TRCE-BATCH-MFU01-CBL01-L45"]
+    }
+  ],
+  "data_io_mapping": [
+    {
+      "io_type": "Input | Output",
+      "format": "Flat File | DB Table | Queue",
+      "resource_name": "Physical file/table name",
+      "field_count": "Integer count of all fields in source",
+      "fields": [
+        {
+          "legacy_name": "...",
+          "modern_name": "...",
+          "type": "Literal source type",
+          "intent": "Business meaning",
+          "traceability_key": "TRCE-IO-MFU01-CBL01-L120"
+        }
+      ]
+    }
+  ],
+  "error_recovery_dna": {
+    "recovery_pattern": "Rollback | Restart-at-Step | Manual-Intervention",
+    "error_indicators": ["Specific codes or messages extracted"],
+    "modern_requirement": "Strategy for modern cloud-native resilience."
+  },
+  "modernization_strategy": {
+    "recommended_target": "GAP-11 FIX: Select the most appropriate modern batch runtime for the target stack. Target backend: {backend}. Target database: {database}. Choose from options such as: Spring Batch (Java/Kotlin stack), AWS Step Functions or Glue (cloud-native/serverless), Azure Data Factory or Databricks (Azure stack), Apache Airflow (Python/multi-cloud). Justify your choice in one sentence based on the legacy paradigm and the target stack.",
+    "surgical_risks": ["Specific items from {risk_flags}"],
+    "notes": "Architectural advice for engineering."
+  },
+  "naming_map": {
+    "LEGACY_FIELD_NAME": "modernFieldName",
+    "INSTRUCTION": "GAP-04 FIX: Replace this object with a flat key-value dictionary mapping EVERY legacy_name from data_io_mapping[].fields[].legacy_name to its modern_name. Use camelCase for modern names. Omit the INSTRUCTION key. Example: { \"EMP-ID\": \"employeeId\", \"NET-PAY\": \"netPayAmount\" }"
+  }
+}

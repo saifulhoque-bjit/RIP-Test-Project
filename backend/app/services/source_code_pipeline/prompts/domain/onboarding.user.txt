@@ -1,0 +1,24 @@
+BOUNDED CONTEXTS (module | subdomain | description):
+%%MODULES%%
+
+GLOSSARY:
+%%GLOSSARY%%
+
+KEY DOMAIN ENTITIES (tables/objects, and the modules that touch them):
+%%ENTITIES%%
+
+MODULE DEPENDENCY MAP (caller -> callee, weight = cross-module calls):
+%%CONTEXT_MAP%%
+
+ENTRY-POINT SCREENS:
+%%ENTRYPOINTS%%
+
+OUTPUT — ONLY this JSON between the markers:
+<<<ONBOARDING>>>
+{"system_purpose": "…",
+ "primary_workflows": [ {"name": "…", "modules": ["…"], "steps": ["…"]} ],
+ "external_dependencies": ["…"],
+ "where_to_start": ["…"],
+ "glossary": [ {"term": "…", "definition": "…"} ]  // only if the provided glossary was empty
+ }
+<<<ENDONBOARDING>>>

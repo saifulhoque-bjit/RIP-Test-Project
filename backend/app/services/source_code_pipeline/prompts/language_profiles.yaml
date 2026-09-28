@@ -1,0 +1,330 @@
+# =============================================================================
+# Stage 5 Language Profiles — FeatureStoryAgent
+# =============================================================================
+#
+# PURPOSE
+# -------
+# Injects language-specific vocabulary constraints and Gherkin guidance into
+# the Stage 5 story generator, corrector, and critic prompts via the
+# {LANGUAGE_HINTS} placeholder. This prevents cross-language contamination
+# patterns observed across PowerBuilder, VB6, and COBOL runs:
+#   - COBOL paragraph names leaking into Gherkin "when" clauses
+#   - HTTP/REST terminology appearing in COBOL batch ACs
+#   - VB6 event handler names appearing in "when" clauses
+#
+# ARCHITECTURE
+# ------------
+# Loaded once at FeatureStoryAgent startup by Stage5ProfileRegistry.
+# Zero Stage 4 impact — Stage 4 prompt selection (prompts/cobol/, prompts/vb6/,
+# prompts/powerbuilder/) is handled by PluginRegistry and is not changed.
+#
+# ADDING A NEW LANGUAGE
+# ---------------------
+# Add one entry under `profiles:` keyed by the canonical technology_tag value
+# (e.g., "RPG", "NATURAL", "PL1"). No code changes required.
+# The Stage5ProfileRegistry will pick it up automatically on next startup.
+#
+# FIELD REFERENCE
+# ---------------
+# vocab_register         : One-line domain vocabulary descriptor for LLM persona
+# gherkin_when_rule      : Mandatory "when" clause rule for this language
+# forbidden_patterns     : List of patterns the LLM must NOT produce in ACs
+#   - description        : Human-readable rule label
+#   - examples_bad       : Concrete bad examples (shown in prompt)
+#   - examples_good      : Concrete good alternatives (shown in prompt)
+# l2ref_formats          : l2_source_ref format by SRS document type
+#   BatchBlueprint       : Format for batch/procedural SRS refs
+#   UIBlueprint          : Format for UI/event-driven SRS refs
+#   APIContracts         : Format for API contract SRS refs
+# success_criteria_note  : Extra guidance for success_criteria[] field (empty = suppress)
+# =============================================================================
+
+profiles:
+
+  # ---------------------------------------------------------------------------
+  # COBOL — Mainframe Batch
+  # ---------------------------------------------------------------------------
+  COBOL:
+    vocab_register: "mainframe batch (COBOL/JCL/VSAM)"
+
+    # Framework / shared-infrastructure units (relaxed business-value gates, #20).
+    # COBOL has no OO inheritance; "framework" = shared copybooks + high-reuse utility
+    # subprograms (logging, error handling, globals) + BMS menu maps. Tune per project.
+    framework_patterns:
+      - "*UTIL*"        # shared utility subprograms (e.g. ECBUTILS)
+      - "*COMMON*"
+      - "*LOGG*"        # logging subprograms (e.g. ECBLOGGR)
+      - "*ERR*"         # error-handler programs/copybooks (e.g. ECBERR)
+      - "*GLOB*"        # global working-storage copybooks (e.g. ECBGLOB)
+      - "*PARM*"        # parameter copybooks (e.g. ECBPARM)
+      - "*MENU*"        # menu / BMS mapset programs
+
+    gherkin_when_rule: >
+      The "when" clause MUST describe ONLY the observable batch trigger or
+      user-initiated action — job scheduler submission, operator command, or
+      file arrival event. It MUST NOT reference any COBOL internal construct:
+      paragraph names (e.g. 1000-INIT, 9000-SHUTDOWN), PERFORM statements,
+      EXEC SQL blocks, EXEC CICS macros, or FILE STATUS checks.
+      These are implementation internals invisible to the business user.
+
+    forbidden_patterns:
+
+      - description: "COBOL paragraph names in 'when' clauses"
+        examples_bad:
+          - "when the program executes the 1000-INIT paragraph"
+          - "when PERFORM 9000-SHUTDOWN runs"
+          - "when the 2000-PROCESS paragraph is invoked"
+          - "when the driver calls PERFORM ECBTXN-PROCESS"
+        examples_good:
+          - "when the batch job is submitted to the job scheduler"
+          - "when the operator triggers the ECB transaction run"
+          - "when the nightly batch window opens and the job is released"
+
+      - description: "HTTP/REST vocabulary in COBOL batch ACs"
+        examples_bad:
+          - "the call fails with a 404 Not Found error"
+          - "the system returns a 500 Internal Server Error"
+          - "the REST endpoint is unavailable"
+          - "the API returns HTTP 200 OK"
+        examples_good:
+          - "the batch job abends with a non-zero return code"
+          - "the called program is not available in the system library and the job exits with RETURN-CODE 8"
+          - "the job step completes with condition code 0004"
+
+      - description: "EXEC SQL or EXEC CICS constructs in 'when' clauses"
+        examples_bad:
+          - "when EXEC SQL SELECT INTO WS-MEMBER END-EXEC runs"
+          - "when EXEC CICS READ FILE('EMPFILE') executes"
+          - "when the SQL cursor is opened"
+        examples_good:
+          - "when the batch job reads all pending member records"
+          - "when the job retrieves the employee file entries"
+
+    l2ref_formats:
+      BatchBlueprint: "SRS::{mfu_id}::BATCH::STEP-{nnn}"
+      UIBlueprint:    "SRS::{mfu_id}::S5::EVENT-{nnn}"
+      APIContracts:   "SRS::{mfu_id}::API::{METHOD}_{path_slug}"
+
+    success_criteria_note: >
+      For COBOL batch features, success_criteria[] should capture observable job
+      outcomes such as: job completion return code (e.g. RETURN-CODE = 0),
+      record count processed, output file written, or downstream notification sent.
+      An empty success_criteria[] is acceptable only for trivial driver/orchestration
+      programs with no measurable business output. Document the reason if left empty.
+
+  # ---------------------------------------------------------------------------
+  # VB6 — Win32 Desktop (Visual Basic 6 / COM / ADO)
+  # ---------------------------------------------------------------------------
+  VB6:
+    vocab_register: "Win32 desktop (VB6/COM/ADO/Recordset)"
+
+    # Framework / shared-infrastructure units (relaxed business-value gates, #20).
+    # VB6 has no inheritance; "framework" = shared/global .bas modules, base classes,
+    # logging, Win32 wrappers, and the MDI shell. Business forms (frm*) are NOT here.
+    framework_patterns:
+      - "modGlobals*"
+      - "modCommon*"
+      - "modUtil*"
+      - "modWin32*"
+      - "clsBase*"
+      - "clsLogger*"      # logging helper (e.g. clsLogger)
+      - "MDIForm*"        # MDI application shell
+      - "frmMain"         # exact main shell only (NOT frm* business forms)
+
+    gherkin_when_rule: >
+      The "when" clause MUST describe ONLY the user's observable action —
+      clicking a button, entering a value in a field, selecting from a list,
+      or pressing a key. It MUST NOT reference VB6 event handler procedure
+      names (e.g. cmdRun_Click, Form_Load, txtField_Change, cmdPayroll_Click).
+      Event handler names are implementation details. Describe what the user
+      does, not which VB6 procedure fires as a result.
+
+    forbidden_patterns:
+
+      - description: "VB6 event handler names in 'when' clauses"
+        examples_bad:
+          - "when the cmdRun_Click event fires"
+          - "when Form_Load executes"
+          - "when txtMonth_Change triggers"
+          - "when cmdPayroll_Click is invoked"
+          - "when the cmdExport_Click procedure runs"
+        examples_good:
+          - "when the user clicks the Run button"
+          - "when the form is opened"
+          - "when the user modifies the Month field"
+          - "when the user clicks the Payroll button"
+          - "when the user clicks the Export button"
+
+      - description: "VB6 internal method/object calls in 'when' clauses"
+        examples_bad:
+          - "when rs.Open executes against the database"
+          - "when CreateObject('ADODB.Recordset') is called"
+          - "when g_conn.Execute runs the query"
+        examples_good:
+          - "when the user submits the search criteria"
+          - "when the user requests the payroll data"
+          - "when the user initiates the batch run"
+
+    l2ref_formats:
+      UIBlueprint:  "SRS::{mfu_id}::S5::EVENT-{nnn}"
+      APIContracts: "SRS::{mfu_id}::API::{METHOD}_{path_slug}"
+
+    success_criteria_note: ""
+
+  # ---------------------------------------------------------------------------
+  # PowerBuilder — Client-Server / DataWindow
+  # ---------------------------------------------------------------------------
+  PowerBuilder:
+    vocab_register: "PowerBuilder DataWindow/Transaction (client-server)"
+
+    # Framework / shared-infrastructure units (relaxed business-value gates, #20).
+    # In PB the reusable layer is menus (m_/menu_), the MDI shell (mdi_), user objects
+    # and NVOs (u_/uo_/n_), the PowerBuilder Foundation Classes (pfc_/pfe_/w_pfc_), and
+    # ancestor objects (*_anc_*). Business logic lives in windows (w_*), which are NOT
+    # matched. Verified: 'uo_anc_dw' (ancestor) MATCHES via uo_*/_anc_; the business
+    # CRUD 'w_fa_ances_infree' does NOT (it contains '_ances_', not '_anc_').
+    framework_patterns:
+      - "m_*"           # menu items
+      - "menu_*"        # menu objects (e.g. menu_mdi_fact)
+      - "mdi_*"         # MDI application-shell frame (e.g. mdi_fact)
+      - "uo_*"          # user objects (reusable components/ancestors)
+      - "u_*"           # user objects / DataWindow ancestors (e.g. u_dw)
+      - "n_*"           # non-visual objects (NVO framework)
+      - "n_cst_*"       # PFC custom-class NVOs
+      - "w_pfc_*"       # PowerBuilder Foundation Class windows
+      - "pfc_*"         # PFC objects
+      - "pfe_*"         # PFC extension-layer objects
+      - "w_base*"       # explicit base windows
+      - "*_anc_*"       # ancestor naming (matches uo_anc_dw, NOT w_fa_ances_infree)
+
+    # HARD-EXCLUSION of VENDOR LIBRARY code (distinct from framework_patterns above, which only
+    # RELAX gating). These files are standard library code — migrated to target-framework
+    # equivalents, NOT reverse-engineered as client business modules — so scan + module derivation
+    # skip them. DELIBERATELY NARROW: only the PowerBuilder Foundation Classes (PFC/PFE). Business
+    # objects such as uo_pat_*, n_pat_*, m_pat_frame are NOT matched here (they carry the domain).
+    library_excludes:
+      dirs:
+        - pfc          # the PFC library directory (whole tree)
+        - pfe          # PFC extension layer
+      patterns:
+        - "pfc_*"      # PFC objects
+        - "pfe_*"      # PFC extension-layer objects
+        - "w_pfc_*"    # PFC windows
+        - "u_pfc_*"    # PFC user objects
+        - "n_cst_*"    # PFC custom-class NVOs
+        - "d_pfc*"     # PFC datawindows
+        - "m_pfc*"     # PFC menus
+
+    gherkin_when_rule: >
+      The "when" clause MUST describe user-initiated business operations —
+      a button click, menu selection, DataWindow Retrieve trigger, or form
+      submission. Control names (e.g. cb_search, dw_1, sle_name) and DataWindow
+      event names (clicked, itemchanged, lostfocus) are implementation detail;
+      they belong in technical_notes, NOT in Gherkin clauses. Describe what the
+      user does, not which PowerBuilder event responds.
+
+    forbidden_patterns:
+
+      - description: "PowerBuilder internal event names in 'when' clauses"
+        examples_bad:
+          - "when the itemchanged event fires on dw_1"
+          - "when cb_search.clicked triggers the retrieve"
+          - "when the lostfocus event on sle_name executes"
+          - "when wf_retrieve() is called"
+        examples_good:
+          - "when the user clicks the Search button"
+          - "when the user changes a value in the data grid"
+          - "when the user moves focus away from the Name field"
+          - "when the user triggers the data retrieve"
+
+      - description: "Hallucinated control names not in SRS S.3 table"
+        examples_bad:
+          - "when the user clicks cb_retrieve"
+          - "when the user interacts with dw_main_grid"
+        examples_good:
+          - "when the user clicks the Retrieve button"
+          - "when the user interacts with the main data grid"
+        note: >
+          Only use verbatim S.3 control names (e.g. cb_search, dw_1) in
+          bounding_box.controls[] — never in Gherkin clauses. Controls that
+          do not appear in the focal SRS S.3 table must not be referenced.
+
+    l2ref_formats:
+      UIBlueprint:  "SRS::{mfu_id}::S5::EVENT-{nnn}"
+      APIContracts: "SRS::{mfu_id}::API::{METHOD}_{path_slug}"
+
+    success_criteria_note: ""
+
+  # ---------------------------------------------------------------------------
+  # RPG — IBM AS/400 / iSeries Batch & Interactive
+  # (placeholder — extend when RPG modules are onboarded)
+  # ---------------------------------------------------------------------------
+  RPG:
+    vocab_register: "IBM AS/400 RPG (batch/interactive, CL jobs)"
+
+    # Framework / shared-infrastructure units (relaxed business-value gates, #20).
+    # RPG/AS-400: service programs, /COPY members, and common utilities. Tune per project.
+    framework_patterns:
+      - "*SRV*"         # service programs (*SRVPGM)
+      - "*UTIL*"
+      - "*COMMON*"
+      - "*COPY*"        # /COPY members (shared declarations)
+
+    gherkin_when_rule: >
+      The "when" clause MUST describe the observable job trigger or user action.
+      It MUST NOT reference RPG subroutine names (EXSR), CL program names,
+      file overrides (OVRDBF), or data structure names. These are internal.
+
+    forbidden_patterns:
+
+      - description: "RPG subroutine names in 'when' clauses"
+        examples_bad:
+          - "when EXSR INIT-RTN executes"
+          - "when the CL program calls OVRDBF CUSTFILE"
+        examples_good:
+          - "when the batch job is submitted via SBMJOB"
+          - "when the operator runs the customer file update job"
+
+    l2ref_formats:
+      BatchBlueprint: "SRS::{mfu_id}::BATCH::STEP-{nnn}"
+      UIBlueprint:    "SRS::{mfu_id}::S5::EVENT-{nnn}"
+
+    success_criteria_note: >
+      For RPG batch features, success_criteria[] should capture job completion
+      codes, file record counts, and any printed output produced.
+
+  # ---------------------------------------------------------------------------
+  # Generic — fallback for unknown/future language tags
+  # Applied when technology_tag is not in the profiles above.
+  # Provides neutral guidance without language-specific forbidden patterns.
+  # ---------------------------------------------------------------------------
+  Generic:
+    vocab_register: "legacy application"
+
+    # No framework patterns by default for unknown languages — nothing is relaxed
+    # unless explicitly configured (safe default). Override via project_config.json
+    # stage5.framework_artifact_patterns or by adding a dedicated language profile.
+    framework_patterns: []
+
+    gherkin_when_rule: >
+      The "when" clause MUST describe ONLY the observable user action or system
+      trigger. It MUST NOT reference internal implementation details such as
+      method names, SQL statements, file I/O operations, or framework constructs.
+
+    forbidden_patterns:
+
+      - description: "Internal implementation details in 'when' clauses"
+        examples_bad:
+          - "when the internal method executes"
+          - "when the SQL query runs"
+          - "when the system calls the internal procedure"
+        examples_good:
+          - "when the user initiates the action"
+          - "when the scheduled job runs"
+
+    l2ref_formats:
+      UIBlueprint:    "SRS::{mfu_id}::S5::EVENT-{nnn}"
+      BatchBlueprint: "SRS::{mfu_id}::BATCH::STEP-{nnn}"
+      APIContracts:   "SRS::{mfu_id}::API::{METHOD}_{path_slug}"
+
+    success_criteria_note: ""

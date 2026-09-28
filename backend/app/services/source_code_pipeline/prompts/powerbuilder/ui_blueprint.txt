@@ -1,0 +1,474 @@
+================ OUTPUT CONSISTENCY CONTRACT (MANDATORY — applies to the ENTIRE response) ================
+These rules OVERRIDE any conflicting instruction below and MUST be followed on every generation:
+1. NEVER echo, restate, or quote this prompt's title, its instruction headings, or the literal word "PROMPT:" into
+   your output. Emit ONLY the finished specification.
+2. Produce EVERY mandatory section. If a section legitimately has no content for this artifact, DO NOT drop it
+   silently — emit the section heading followed by an explicit empty marker on its own line:
+   `NONE — <one-line reason>`.
+3. The `S.3 Item Specification Table` is MANDATORY for any screen/window that has visible controls. If the object is passive/non-visual (e.g. a user object or NVO with no visible controls), still emit the heading `## S.3 Item Specification Table` followed by `NONE — passive/non-visual component (no visible controls)`.
+4. ALWAYS end the response with the machine-readable JSON block (the Naming Map / machine bridge) inside ONE
+   ```json fence — even for passive/empty artifacts (emit `{}` if there is genuinely nothing to map). Never skip it,
+   and never output ONLY this block without the specification body above it.
+5. Do NOT wrap the whole document in a single code fence. Only the final machine-readable JSON block is fenced.
+=========================================================================================================
+
+[INTERNAL PROMPT NAME — do NOT reproduce this line as a heading in the output; begin the document at the PRE-FLIGHT INVENTORY section]: UI BLUEPRINT, VALIDATION & ACCESS FORENSICS — POWERBUILDER EDITION (V4 STANDALONE)
+
+## **1. Role & Communication Standard**
+You are a **Lead Modernization Architect** specialising in PowerBuilder legacy decomposition. Your task is to perform a surgical logic extraction of a legacy Functional Unit (MFU) written in PowerBuilder. This MFU may contain Windows, DataWindows, DataStores, Non-Visual User Objects (NVOs), visual user objects, menus, and inherited ancestor chains.
+
+**Target Audience:** Project Managers (PM) and Software Engineers.
+**Language Standard (IELTS 5.5–6):**
+* Use **Global English**: Simple, professional, and active voice.
+* Use **"Behavioral Intent"** columns to explain "Why" a technical field exists.
+
+## **2. Project Context**
+* **Project:** {project_name} ({project_id})
+* **Execution Track:** {execution_track}
+* **Target Stack:** {frontend} | {backend} | {database}
+* **Architecture Pattern:** {architecture}
+* **Traceability Chain:** {traceability_chain}
+* **Naming Map (Strict Binding):** {naming_map}
+
+## **3. Forensic Fidelity Guardrails (MANDATORY)**
+* **ANTI-TRUNCATION RULE:** You must extract every field, hidden column, and button. If a `data_provider` (e.g., invisible grid, DataStore, DataWindow) is identified, you MUST list EVERY column defined in the `.srd` source or embedded definition. ZERO omissions.
+* **MASKED REGIONS MANDATE:** Proprietary UI logic, embedded SQL, and macro executions have been surgically sequestered into the `landmine_details.masked_regions` payload. You MUST actively scan these isolated blocks to reconstruct accurate business behaviors, data bindings, validation logic, and authorization rules. Do not claim logic is missing if it resides here.
+* **CLIENT-SIDE VALIDATION RULES:** You must extract all embedded UI validation rules, regex masks, max-length constraints, and display formats. Do not assume backend validation is sufficient.
+* **ERROR MESSAGING & ALERTS:** You must extract literal strings for all `MessageBox()` dialogs, modal alerts, and error codes triggered by the UI.
+* **AST SPATIAL TRACEABILITY:** When citing Trace IDs or evidence, you MUST use the exact mathematical coordinates (`line_start`) provided in the `edges` array instead of guessing line numbers from text chunks. Use the format `TRCE-{TYPE}-{artifact_id}-L{line_start}` (see Appendix A for full prefix rules).
+* **EVENT-TRIGGER BINDING:** Every business rule, validation, and calculation must be paired with its legacy trigger (e.g., window `open`, `clicked`, `itemchanged`, `lostfocus`).
+* **MULTI-ARTIFACT SYNTHESIS:** You are receiving multiple files wrapped in `<artifact id="...">` XML tags. You MUST trace the procedural execution flow across ALL provided artifacts. If an artifact is provided in the payload but you do not include its logic in your output, you have failed the extraction.
+* **GRAPH ALIGNMENT RULE:** The file listed in `{traceability_chain}` is the PRIMARY ANCHOR and contains the core business intent. All other files in the payload are SUBORDINATE UTILITIES. Your mapping MUST be centered around the Primary Anchor.
+* **FORMAT LOCK:** Tables for **Screen Specifications** and **Persistence DNA** MUST remain in Markdown format.
+* **NO DATA INFERENCE:** Document literal source controls (e.g., `cb_search`, `dw_1`). Do not invent standard names.
+* **NO LOGIC INFERENCE:** Document literal validation formulas and authorization checks. Do not "fix" or "improve" legacy logic.
+* **ANCESTOR CHAIN MANDATE:** Failing to trace the full PowerBuilder ancestor chain results in missing 60–80% of the actual business logic. You MUST follow the inheritance chain to the base class before declaring any extraction complete.
+
+## **4. Input Context**
+**[MFU GLOBAL CONTEXT]**
+* **MFU ID:** {mfu_id} | **MFU Name:** {mfu_name}
+* **Embedded Dependencies (Edges):** {screen_dependencies}
+
+**[PARADIGM FORENSIC HINTS]**
+{paradigm_hints}
+
+**[SOURCE ARTIFACTS]**
+The raw legacy source code follows. It is provided as a multi-file payload. Each file is encapsulated within `<artifact id="filename"> ... </artifact>` tags.
+
+{artifacts_payload}
+
+---
+
+# **PRE-FLIGHT INVENTORY (MANDATORY GATE)**
+*Before generating the blueprint, you MUST list the artifacts you received to verify full context awareness.*
+* **Artifacts Received:** [List all IDs found in the `<artifact>` tags]
+* **Primary Anchor:** [State the ID matching the `{traceability_chain}`]
+
+---
+
+## **FOCAL SCOPE MANDATE (GAP-02 FIX)**
+{entrypoint_focus}
+
+---
+
+# **TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)**
+
+## **1.1 Identity Header**
+* **MFU ID:** {mfu_id} | **Name:** {mfu_name} | **Track:** {execution_track} | **PIC:** Lead Modernization Architect
+
+## **1.2 Legacy Source References**
+| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |
+| :--- | :--- | :--- | :--- |
+{references_table}
+
+## **1.3 High-Risk Warning Box**
+Map specific issues to `{risk_flags}` (e.g., "Uses complex dynamic SQL to build the UI grid", "Deep ancestor inheritance chain requires multi-PBL audit").
+
+## **1.4 Executive Forensic Summary**
+1. **Business Mission:** What does the user accomplish on this screen?
+2. **Interaction Style:** e.g., "Master-Detail Data Entry with DataWindow update", "Read-Only Dashboard via DataStore".
+3. **Critical Dependencies:** List any critical outbound calls (e.g., "Calls NVO for authorization check", "Uses custom Transaction Object for separate DB session").
+
+---
+
+# **TIER 2: THE INFORMATION EXCHANGE CONTRACT (The "What")**
+
+## **2.1 Visual Zone Map (ASCII Layout)**
+* **Forensic Layout Reconstruction:** Generate a detailed ASCII-art representation of the window zones (e.g., Search Header area vs. Data Grid). Use boxes `[ ]` for inputs and `( )` for buttons. Label with modern field names or Trace IDs where applicable.
+
+## **2.2 Interaction / Trigger Metadata**
+* **Modern Endpoint / Route:** `/app/{module_name_lowercase}/{mfu_id_lowercase}`
+* **Data Cardinality:** [Single Record / Master-Detail / Dashboard]
+
+## **2.3 Screen Specifications & Form Elements**
+*Group interactive fields by screen zones (e.g., Search Header, Results Grid, Helper Data Providers).*
+
+**[ANTI-TRUNCATION COUNT-AND-MAP GUARDRAIL]:** Before generating a table for a `data_provider` or DataWindow, you MUST physically count the number of columns/fields defined in the `.srd` source or embedded DataWindow definition. You MUST print this exact integer count in the section header BEFORE the table (e.g., `### DataWindow: dw_order_lines (Total Columns: 18)`). You are mechanically forced to generate a table row for every single counted column. ZERO omissions — hidden/invisible columns are equally required.
+
+| Modern Field Name | Legacy Control ID | Visual Type | Validation/Requirement | Behavioral Intent |
+| :--- | :--- | :--- | :--- | :--- |
+| First Name | sle_first_name | SingleLineEdit | Max 50 chars, Required | Captures user identity. |
+
+## **2.4 Persistence DNA & Grid Behaviors**
+*If this screen executes DML directly via DataWindow `Update()`, map the outbound payload.*
+| Target Modern Field | Legacy Data Source Column | Data Type | Update Characteristic | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+
+**Grid & Row Behavioral Mapping:**
+* **Calculations:** Map logic that auto-calculates values via computed columns or `itemchanged` events (e.g., tax, row totals). Explicitly state the Event Trigger.
+* **Row Interaction:** Detail logic for "Row Insert", "Row Copy" (identify reset vs. duplicated fields via `RowsCopy()` / `RowsMove()`), and "Row Delete" (`DeleteRow()`).
+* **Sort / Filter:** Identify `SetSort()`, `Sort()`, `SetFilter()`, `Filter()` calls that change the visible dataset without hitting the database.
+
+---
+
+# **TIER 3: THE FUNCTIONAL BLUEPRINT (The "How")**
+
+## **3.1 Transaction Identity & Framework**
+* **Hierarchy Mapping:** Identify the Ancestor and full functional lineage (e.g., `w_order → w_master → w_base`).
+* **Logic Merging:** Document whether local logic extends (uses `CALL SUPER::`) or overrides (no `CALL SUPER::`) the base framework for each key event.
+
+## **3.2 Interaction & Shortcut DNA**
+* **Accelerator Keys:** Scan for `&` in CommandButton labels and menu item text (e.g., `&Search` → `Alt+S`).
+* **Direct Shortcuts:** Scan for key intercepts in the `key` event of the window or controls (e.g., `KeyCode = KeyF1!`, `KeyCode = KeyReturn!`).
+
+## **3.3 Infrastructure & Environment Binding**
+* **External Triggers:** Identify dependencies on file arrivals, DB Links, Timer controls (`Timer.Interval` + `timer` event), or OS triggers.
+* **Legacy Orphan Table:** Map legacy constructs (e.g., `DataStore`, `NVO`) to Modern Equivalent Strategy.
+
+## **3.4 State & Session Memory Context**
+* **Memory Variables:** Explicitly inventory all `Global`, `Shared`, and `Instance` variables used to pass data between screens. Include the ancestor's instance variables.
+
+## **3.5 Screen Initialisation — Open Event Deep-Scan (GAP-09)**
+**MANDATORY:** In PowerBuilder, the `open` event is the primary and often the only entry point for all screen initialization logic. It MUST be fully decomposed. Scan the `open` event of the Window object (and any `ue_postopen` or `uf_init()` function it calls).
+
+| Initialisation Step | Legacy Event/Trigger | Logic (Literal) | Business Meaning | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| e.g., Bind DataWindow | `open` | `dw_1.SetTransObject(SQLCA)` | Binds the DataWindow to the default database session. | TRCE-UI-{artifact_id}-L{line_start} |
+
+**Key items to capture in this section:**
+* `SetTransObject()` calls — which Transaction Object (`SQLCA` or custom) is bound to which DataWindow or DataStore.
+* `Retrieve()` calls at open time — these are the initial data load queries; document their exact arguments.
+* `Modify()` calls — runtime DataWindow column property changes at open (e.g., hiding columns, changing edit styles based on context).
+* Security-based `Visible` / `Enabled` assignments — controls shown/hidden based on user role (`ls_user_role`, `gnv_app.of_GetSecLevel()`).
+* `OpenSheet()` / `OpenSheetWithParm()` calls initiated from this object's open event.
+* Default field values set on load (e.g., today's date via `Today()`, current user ID via `gs_user_id`).
+* `PostEvent()` calls that defer initialization logic to after the window is fully rendered.
+
+## **3.6 Client-Side Validation Logic**
+**MANDATORY:** Extract every validation rule, pre-condition check, and input constraint that executes on the client before data is committed.
+
+| Modern Rule Name | Legacy Trigger (Event) | Validation Formula (Literal) | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| e.g., Age Check | `clicked` (btn_save) | `IF GetAge() < 18 THEN Return -1` | Prevents saving contracts for minors. | TRCE-LOGIC-{artifact_id}-L{line_start} |
+
+* **Pre-Condition Gates:** Document any `IF` or `CHOOSE CASE` blocks that abort execution before calling the save/submit logic.
+* **Cross-Field Validation:** Identify rules that compare two or more fields (e.g., "End date must be after Start date").
+* **DataWindow Column Validation:** Extract `Validation` properties defined in the DataWindow painter — these fire on `itemchanged` before save.
+
+## **3.7 Core Calculations & Transformations**
+**MANDATORY:** Extract every computed field, running total, and data transformation applied in the UI layer.
+
+| Target Field | Formula / Logic (Literal) | Source Artifact | Event Trigger | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+
+* **Rounding & Precision:** Document any `Round()`, `Truncate()`, or `String(value, format)` calls with their exact arguments.
+* **Derived State:** Identify fields whose value is always computed from other fields and must never be stored directly.
+* **Computed Columns:** Extract DataWindow computed columns (e.g., `computed_1 = salary * 0.12`) — these are server-side formulas baked into the DataWindow definition.
+
+## **3.8 UI Error & Exception Handling**
+**MANDATORY:** Extract every error message, modal dialog, and exception trap that surfaces to the user.
+
+| Legacy Error Code / Literal Message | Trigger Condition | Modern Requirement |
+| :--- | :--- | :--- |
+| e.g., `"Record has been modified by another user."` | Save conflict detected (DW update returns -1) | Show 409 Conflict dialog with Reload option. |
+
+* **`dw.Update()` Return Code Handling:** Document every check of the integer return value from `Update()` (e.g., `IF li_rc = -1 THEN ...`).
+* **`SQLCode` / `SQLErrText` Checks:** Document post-DML checks on `SQLCA.SQLCode` — negative values indicate transaction failure.
+* **`MessageBox()` Calls:** Capture all `MessageBox()` calls: title, message text, icon, and button configuration.
+
+---
+
+# **TIER 4: POWERBUILDER FORENSIC ADDENDUM**
+
+## **L.1 DataWindow / DataStore Binding DNA**
+**MANDATORY FOR ALL PB ARTIFACTS:** PowerBuilder DataWindows and DataStores are the primary data contract layer. Every `.srd` or embedded DataWindow object MUST be fully decomposed.
+
+**[ANTI-TRUNCATION COUNT-AND-MAP GUARDRAIL — PB EDITION]:** Before generating the DataWindow table, physically count every column defined in the DataWindow source (`.srd` header or embedded definition). Print the integer count in the section header (e.g., `### DataWindow: dw_order_lines (Total Columns: 22)`). Generate one table row per column. ZERO omissions — invisible/hidden columns are equally required.
+
+| Column Name (Legacy) | Modern Field Name | PB Type | Nullable | Update Characteristic | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [legacy_col_name] | [modernFieldName] | [e.g., char(20)] | [Y/N] | [Updateable/Key/ReadOnly] | [Why this field exists] |
+
+**Update Characteristics to Extract (from `.srd` header or DataWindow painter source):**
+* **`updatewhere`**: Identify the update strategy: `key` (Key Columns Only), `keyandmodifiable` (Key + Changed Columns), or `keyandstamp` (Key + Timestamp).
+* **`keymodification`**: Document if `delete+insert` is used for Primary Key changes instead of UPDATE.
+* **`table.update`**: Name of the physical table that receives DML from this DataWindow.
+* **`table.delete`**, **`table.insert`**: Confirm if separate tables are used for insert vs. delete operations.
+* **Retrieve Arguments**: List all `Retrieve(arg1, arg2, ...)` arguments — these form the GET request's required parameters.
+
+**DataStore Detection:** If a `DataStore` object is used instead of a visible DataWindow, document it here with its `DataObject =` assignment, retrieve arguments, and the event that triggers `Retrieve()`.
+
+---
+
+## **L.2 Ancestor / Descendant Inheritance Model**
+**MANDATORY:** PowerBuilder uses visual and non-visual inheritance. Failing to trace the ancestor chain results in missing 60–80% of the actual business logic.
+
+* **Inheritance Chain:** Identify the full ancestor chain: `[this artifact] → [immediate ancestor] → ... → [base class]`.
+* **Overridden Events/Functions:** List every `event` or `function` in this artifact that overrides the ancestor's implementation. Document the `CALL SUPER::` usage — is it called at the start, end, or not at all?
+* **Extended Logic:** Document logic that is added to (not replacing) the ancestor behavior via `CALL SUPER::` at the start of the event.
+* **Instance Variable Declarations:** Inventory all `instance variables` declared in the current object and its ancestor — these are the object's state machine.
+
+| Event / Function | Defined In | Overrides Ancestor? | CALL SUPER? | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `open` | [this artifact] | Yes | End | Extends ancestor open with security check. |
+
+---
+
+## **L.3 PBL Library Search Path Context**
+* **PBL Membership:** Identify which `.pbl` file this artifact belongs to (from the `@Library` declaration or project configuration).
+* **Library Search Order:** If the project references multiple PBLs, document the search order — earlier PBLs shadow later ones for the same object name.
+* **Cross-PBL Calls:** Identify any `CREATE [ObjectName]` or function calls that resolve to objects in a different PBL, representing a cross-library dependency.
+
+---
+
+## **L.4 PowerBuilder Open Event — Deep-Scan Addendum**
+*(Augments Tier 3.5 with PB-specific forensic rules)*
+
+**MANDATORY:** In PowerBuilder, the `open` event is the primary entry point for all screen initialization logic. Scan both the direct `open` event and any `ue_postopen`, `uf_init()`, or `PostEvent()` deferred chains.
+
+| Init Step | Event | PB Literal Source | Business Meaning | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| e.g., Set Transaction Object | `open` | `dw_1.SetTransObject(SQLCA)` | Binds the DataWindow to the default database session. | TRCE-UI-{artifact_id}-L{line_start} |
+
+**Key PB-Specific Items to Capture:**
+* `SetTransObject()` calls — which Transaction Object (SQLCA or custom) is bound to which DataWindow.
+* `Retrieve()` calls at open time — these are the initial data load queries; document their arguments.
+* `Modify()` calls — runtime DataWindow column property changes at open (e.g., hiding columns, setting tab order, changing edit styles based on context).
+* Security-based `Visible` / `Enabled` assignments — controls shown/hidden based on `ls_user_role` or equivalent.
+* `OpenSheet()` / `OpenSheetWithParm()` calls initiated from this object's open event.
+
+---
+
+## **L.5 PostEvent / TriggerEvent Async Patterns**
+**MANDATORY:** PowerBuilder's `PostEvent()` defers execution until the current event has fully returned, creating asynchronous-like behavior. `TriggerEvent()` fires synchronously. Both patterns MUST be documented because they affect the execution order of business logic.
+
+| Call | Event Posted / Triggered | Source Event | Argument(s) | Business Purpose | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `PostEvent` | `ue_refresh_grid` | `clicked` (btn_save) | `"refresh"` | Defers grid reload until after save transaction completes. | TRCE-UI-{artifact_id}-L{line_start} |
+| `TriggerEvent` | `ue_validate` | `itemchanged` | — | Fires synchronous cross-field validation before accepting the new value. | TRCE-UI-{artifact_id}-L{line_start} |
+
+**Key Items to Capture:**
+* **Deferred Initialization via `PostEvent`:** Any `PostEvent(this, "ue_postopen")` or similar pattern in the `open` event — the deferred logic executes AFTER the window is fully painted and must be extracted as part of initialization.
+* **Event Chains:** Identify cascading `PostEvent` calls where one event posts another, creating an execution chain. Document the full chain.
+* **`TriggerEvent` as Function Call Substitute:** VB-style developers sometimes use `TriggerEvent` to call custom user events like functions — document all cases.
+* **`ParamString` / `ParamDouble` / `WordParm` / `LongParm`:** Extract the argument type and value passed via the event parameter mechanism (`Message.StringParm`, `Message.LongParm`).
+
+---
+
+## **L.6 Menu Security State Mapping**
+**MANDATORY:** PowerBuilder menus are bound to windows and contain security-gated menu items that are enabled/disabled/invisible based on user role or application state. These map directly to modern RBAC policies and must not be omitted.
+
+| Menu Item (Legacy Name) | Menu Path | Enabled Condition (Literal) | Visible Condition (Literal) | Bound Action / Function | Modern RBAC Claim |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `m_file_save` | File → Save | `gnv_app.of_GetSecLevel() >= 3` | Always visible | Triggers `wf_save()` | `role:DataEntry` or higher |
+| `m_admin_delete` | Admin → Delete Record | `gnv_app.of_GetSecLevel() >= 5` | `gnv_app.of_IsAdmin()` | Triggers `wf_delete()` | `role:Admin` |
+
+**Key Items to Capture:**
+* **`m_xxx.Enabled`** assignments in the window's `open` event or dedicated `wf_set_menu_state()` function — these are runtime security gates.
+* **`m_xxx.Visible`** assignments — hidden menu items represent feature flags or privileged operations.
+* **Toolbar Pane Linkage:** Identify ToolbarItemName assignments that link menu items to toolbar buttons — both must be locked/unlocked together.
+* **Dynamic Menu Text:** Identify `m_xxx.Text` assignments that change menu labels at runtime (e.g., "Lock Record" ↔ "Unlock Record") — these represent toggle states.
+* **`ParentWindow.MenuID`:** Identify window-level menu associations and sheet-level menu merging in MDI applications.
+
+---
+
+## **L.7 GetFocus / LoseFocus Field Validation Events**
+**MANDATORY:** PowerBuilder field-level validation is frequently implemented in `getfocus` and `lostfocus` events of individual controls. These events contain hidden business rules that do not appear in the DataWindow validation expressions and MUST be extracted.
+
+| Control ID | Event | Legacy Logic (Literal) | Business Rule | Interaction with Save Logic | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `sle_account_no` | `lostfocus` | `IF NOT IsValid(This.Text) THEN ... SetFocus()` | Account number format check before field exit. | Prevents save by blocking focus transfer. | TRCE-UI-{artifact_id}-L{line_start} |
+
+**Key Items to Capture:**
+* **`getfocus` Pre-Population:** Identify any `getfocus` events that populate helper fields or display hint text when the user enters a field.
+* **`lostfocus` Format Enforcement:** Extract format normalization applied when the user leaves a field (e.g., uppercase conversion, leading zero padding).
+* **Focus Redirection:** Identify `SetFocus()` calls inside `lostfocus` — these force the user to remain in the field until validation passes. Document the condition that triggers the redirect.
+* **`itemchanged` on DataWindow Columns:** Extract `dw.Event itemchanged(row, dwo, newvalue)` logic — this is the DataWindow equivalent of `lostfocus` and fires before the new value is accepted by the DataWindow buffer.
+* **`itempchanged` Accept/Reject Pattern:** Document the `return 1` (accept) / `return -1` (reject) / `return 0` (accept and move to next) return value pattern in `itemchanged` events.
+
+---
+
+## **L.8 PB 11+ TRY / CATCH Exception Handling**
+*Apply this section only if the artifact uses PowerBuilder 11+ structured exception handling (`TRY / CATCH / FINALLY / THROW`).*
+
+**MANDATORY:** PB 11 introduced structured exception handling. When present, it replaces the older `SQLCA.SQLCode` check pattern and MUST be fully documented.
+
+| Try Block Scope | Exception Type Caught | CATCH Logic (Literal) | FINALLY Block? | Business Meaning | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Save transaction | `SQLException` | `ROLLBACK USING ltr_custom; MessageBox("Error", sqle.getMessage())` | Yes — closes connection | Rolls back all changes if the DB transaction fails. | TRCE-UI-{artifact_id}-L{line_start} |
+
+**Key Items to Capture:**
+* **`THROW` vs `ThrowOriginal`:** Identify whether the exception is re-thrown or swallowed after logging — this affects whether callers see the failure.
+* **Custom Exception Classes:** Extract any user-defined exception classes (`CLASS MyException FROM Exception`) — these are the application's proprietary error vocabulary.
+* **`FINALLY` Resource Cleanup:** Document any `FINALLY` blocks that close connections, destroy objects, or release OS resources — these are critical for modern resource management.
+* **Nesting:** Identify nested `TRY` blocks — each level represents a distinct failure domain.
+
+---
+
+---
+
+# **TIER 5: SCREEN SRS VERIFICATION BLOCK (Team Review Format)**
+
+> **Purpose:** This block produces a structured output that mirrors the team's **[Screen-SRS]** Excel template format. It is intended for PM and development-team verification and sign-off. It MUST be generated exclusively from the same source artifacts analysed in Tiers 1–4 — **NO additional inference or invention**. Where a control label, caption, or field name exists in Japanese in the source, **BOTH the Japanese and English forms MUST be preserved** in the format `JP: 〇〇 / EN: English Name`.
+
+---
+
+## **S.1 Screen Identity**
+
+| Attribute | Value |
+| :--- | :--- |
+| **Screen ID** | [**Deterministic derivation rule — apply exactly as follows:**<br>Format: `{MODULE_PREFIX}_{FUNCTION_KEYWORD}_{SEQ}`<br>• `MODULE_PREFIX` — Extract the uppercase business-domain prefix from the window object name. Strip the leading `w_` type prefix and tokenise on `_`. Take the first 1–2 meaningful tokens that identify the module (e.g., `w_fa_ances` → `FA_ANCES`; `w_secu_logon_kanren` → `SECU_LOGON_KANREN`; `w_app_labo_stock` → `APP_LABO_STOCK`).<br>• `FUNCTION_KEYWORD` — Select the single keyword that best describes the screen's business function from this controlled vocabulary: `LIST` (search/browse), `EDIT` (add/update), `DETAIL` (read-only detail), `LOGIN` (authentication), `MENU` (navigation hub), `REPORT` (output/print), `IMPORT` (data intake), `EXPORT` (data output). If none fit, use the PascalCase suffix of the window object name uppercased.<br>• `SEQ` — 3-digit zero-padded sequence within the module (e.g., `001`, `002`). Assign `001` to the primary screen of this MFU unless a sibling screen has already been assigned `001`.<br>**Example:** `w_fa_ances_infree` → `FA_ANCES_EDIT_001`.] |
+| **Screen Name (JP / EN)** | [Japanese title extracted from window `Title` property or ancestor / English equivalent] |
+| **Function Overview** | [One paragraph: what business goal this screen fulfills, derived from `open` event logic and DataWindow queries] |
+| **Preconditions** | [List every condition that must be true before the screen can open — e.g., security level check, parent window state, data availability] |
+| **Permission** | [Required role or security level — extracted from `of_GetSecLevel()`, NVO security check, or `Enabled/Visible` gating in `open` event] |
+| **Entry Transition** | [How the user reaches this screen — e.g., "Called from main security management menu via `OpenSheet()` / `OpenSheetWithParm()`"] |
+| **Exit Transition** | [Where the user goes after closing — e.g., "Returns to parent MDI sheet", "Closes application"] |
+| **Other Notes** | [Any special behaviours: inherited from ancestor chain, global application context, environment/era code dependencies] |
+
+---
+
+## **S.2 Screen Layout Definition**
+
+*Map all named display modes or visual states the screen can be in. In PowerBuilder, display states are typically driven by `Enabled`/`Visible` control toggling, tab page activation, or DataWindow content changes triggered in the `open`, search, or row-selection events.*
+
+| Display Mode | Display Pattern Name (JP / EN) | Description | Trigger |
+| :--- | :--- | :--- | :--- |
+| Initial Screen | [e.g., JP: 初期画面 / EN: Initial Screen] | [Appearance on `open` before any search — which controls are enabled/visible, which are not] | Window `open` event |
+| Search Results | [e.g., JP: 検索結果 / EN: Search Results] | [Grid populated after search — which controls activate, which lock] | Search button `clicked` / `Retrieve()` completes |
+| Detail View | [e.g., JP: 詳細表示 / EN: Detail View] | [Selected-row data visible in edit zone — which tab becomes active] | Row selection (`clicked`) or double-click (`doubleclicked`) event |
+| Confirmation Dialog | [e.g., JP: 確認ダイアログ / EN: Confirmation Dialog] | [Modal popup before destructive operations — text, buttons] | Delete / Update button `clicked` |
+| Error / Validation Message | [e.g., JP: エラーメッセージ / EN: Error Message] | [Validation failure feedback — `MessageBox()` literals] | `itemchanged`, `lostfocus`, or save validation gate |
+| [Add further modes as found in source] | | | |
+
+---
+
+## **S.3 Item Specification Table**
+
+**[ANTI-TRUNCATION COUNT-AND-MAP GUARDRAIL]:** You MUST generate **one row for EVERY control** found in the source: labels, input fields, buttons, DataWindow grids, DataStore objects, dropdowns, radio buttons, checkboxes, tab controls, tab pages, splitbars, and user objects. Physically count all controls before generating the table and print the total in the header: `### Total Controls: {N}`.
+
+**Bilingual Rule:** Where a control's label or caption exists in Japanese in the source (e.g., window title, button caption, `StaticText.Text`), include it as `JP: 〇〇 / EN: English translation`. If only English is present, write the English form only.
+
+**I/O Legend:** `I` = Input only (user enters a value), `O` = Output/Display only (system populates the value), `I/O` = Both input and display (user can edit a pre-filled value), `—` = Non-interactive (no data binding).
+
+**MANDATORY RULE — Action controls are always `—`:** `CommandButton`, `PictureButton`, and `Menu` items MUST always receive `—` in the I/O column. They trigger operations but do not hold, read, or bind data values. Assigning `I` or `O` to a button is a specification error. Static labels (`StaticText`), decorative lines, and structural containers (`Tab`, `SplitBar`, `GroupBox`) are also always `—`.
+
+### Total Controls: {COUNT — fill before generating table}
+
+| # | Item Name (JP / EN) | Physical Name | I/O | Control Type | Related Process / Event | Item Description | Default Value | Display Format | Alignment | IME | Max Length |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | [JP: ラベル名 / EN: Label Name] | [e.g., `logonId`, `sle_logonid`, `cb_search`] | [I / O / I/O / —] | [See type reference below] | [Button: event name; Field: `itemchanged`/`lostfocus`; Grid: `clicked`/`doubleclicked`; or `—`] | [What this control does in business terms] | [Literal default or `—`] | [Format mask, e.g., `MM/DD/YYYY`, or `—`] | [Left / Center / Right / `—`] | [On / Off / `—`] | [Integer or `—`] |
+
+**Control Type Mapping Reference (PowerBuilder → SRS):**
+
+| PowerBuilder Type | SRS Control Type |
+| :--- | :--- |
+| `StaticText` | Label |
+| `SingleLineEdit` | Text Input |
+| `MultiLineEdit` | Text Area |
+| `CommandButton` | Button |
+| `DataWindow` | Grid / Table |
+| `DataStore` | Headless Data Grid (non-visual) |
+| `DropDownListBox` | Dropdown |
+| `DropDownDataWindow` | Dropdown (DB-driven) |
+| `RadioButton` | Radio Button |
+| `CheckBox` | Checkbox |
+| `Tab` / `TabPage` | Tab Control / Tab Page |
+| `User Object` | User Object (describe functional role in description) |
+| `SplitBar` | Split Bar |
+| `Picture` / `PictureButton` | Image / Image Button |
+
+**MANDATORY — Hidden Controls Subsection:** After completing the main control table above (which lists all *active / visible* controls), you MUST append the following subsection immediately below the table:
+
+```
+### Hidden Controls (Visible=False or Enabled=False at Window Open)
+
+| # | Item Name (JP / EN) | Physical Name | Control Type | Hidden By | Condition to Become Visible/Enabled | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+```
+
+Rules:
+* A control belongs in this subsection if, at the point the `open` event completes, its `Visible` property is `False` **or** its `Enabled` property is `False` due to a security check, data-state condition, or design intent.
+* **Do NOT mix hidden controls inline with active controls** in the main table. The main table is for controls that are visible and interactive on screen load.
+* If no controls are hidden at open, write: `*No controls are hidden or disabled at window open.*`
+* Use the same bilingual JP/EN convention for Item Name.
+
+---
+
+## **S.4 Individual Field Validation Specification**
+
+**[ANTI-TRUNCATION GUARDRAIL]:** Extract validation rules for ALL controls where `I/O = I` or `I/O`. Sources to scan: DataWindow `Validation` expressions in `.srd`, `itemchanged` event logic, `lostfocus` event logic, and pre-save `IF` gates. If no validation applies to a field, write `—` in all cells.
+
+**[TIER 3.6 CROSS-POPULATION MANDATE]:** You MUST cross-populate ALL validation evidence surfaced in Tier 3.6 (Field-Level Validation) of the current analysis into this table. The following mapping rules are non-negotiable:
+* **Required (○):** If Tier 3.6 or any `IF` gate contains `IF Trim(sle_xxx.Text) = ''`, `IF IsNull(...)`, or a DataWindow `Validation` that enforces non-blank — set Required = `○`. If no such check exists for the field, set `—`.
+* **Max Length:** If S.3 records a `limit=N` `Modify()` call or a DataWindow column attribute `max=N` for this control, that integer MUST appear here. Do not leave it `—` if S.3 already documented a length constraint.
+* **Input Format / Mask:** If Tier 3.6 or the DataWindow column definition specifies an edit mask (e.g., `mask="9999/99/99"`, `editmask="###,###.##"`), copy the literal mask string here.
+* **Min / Max Value:** If Tier 3.6 contains a range check (e.g., `IF dec_val < 1 OR dec_val > 999`), record the boundary integers.
+* **Regular Expression:** If a regex pattern string is passed to a custom validation function (e.g., `f_validate_regex(sle_xxx.Text, "^[0-9]{6}$")`), copy the literal pattern.
+* **Completeness check:** After filling the table, verify that every field listed in S.3 with `I/O = I` or `I/O` has a corresponding row here. Missing rows are a specification defect.
+
+| # | Item Name (JP / EN) | Physical Name | Required (○ / —) | Attribute | Min Length | Max Length | Input Format / Mask | Min Value (Numeric) | Max Value (Numeric) | Regular Expression |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | [JP / EN] | [physical name] | [○ or —] | [e.g., Alphanumeric, Numeric, Date YYYY/MM/DD, Japanese Free Text, Single Char Flag] | [N or `—`] | [N or `—`] | [Format mask literal or `—`] | [N or `—`] | [N or `—`] | [Regex literal or `—`] |
+
+---
+
+## **S.5 Event / Operational Specification**
+
+**[ANTI-TRUNCATION GUARDRAIL]:** Document EVERY user-actionable event: every button click, grid row selection, double-click, tab change, sort, pagination, rows-per-page change, direct page jump, keyboard shortcut, and window close. Number them sequentially. Use the exact button label in the format `JP: ボタン名 / EN: Button Name` where both forms exist in source.
+
+**Processing Type:** `Client processing` = pure UI logic with no server call; `Server processing` = triggers an API call or direct DB operation; `Both` = client validation followed by server operation.
+
+| # | Event Name (JP / EN) | Event Overview | Processing Type | Sync / Async | Operation Type | Remarks |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | [JP: イベント名 / EN: Event Name] | [Brief description of what this user action does] | [Client processing / Server processing / Both] | [Synchronous / Asynchronous] | [Search / CRUD Insert / CRUD Update / CRUD Delete / Navigation / Export / Print / Print Preview / Permission / Initialisation / Sort / Pagination] | [Special conditions, prerequisites, or UI state changes] |
+
+### **S.5 Event Detail Sheets**
+
+*For EACH event numbered in the table above, generate a full detail sheet using the template below. Do NOT omit any event. Do NOT merge events.*
+
+---
+
+**Event #1 — [Event Name JP / EN]**
+
+| Attribute | Detail |
+| :--- | :--- |
+| **Preconditions** | [What must be true before this event fires — e.g., "At least one row selected in grid", "Detail fields modified and validation passes"] |
+| **Processing Details** | [Numbered steps: what happens on the client, what API is called with which parameters, what DB operation is executed, what UI state changes result] |
+| **API Called** | [API name and endpoint from Section S — e.g., `API-LogonMaster.GET.V1 → POST /api/v1/logon-master/search`, or `—` if client-only] |
+| **Postconditions** | [Final state: what the user sees, which controls are enabled/disabled, what message is shown] |
+
+---
+
+*[Repeat Event Detail Sheet for events #2, #3, … #N — one sheet per event, no omissions]*
+
+# **PART 5: THE MACHINE BRIDGE (MANDATORY)**
+
+## **[NAMING_MAP]**
+
+**MANDATORY:** Generate the machine-readable field-name bridge for downstream pipeline consumption.
+This block **MUST be the absolute last section** in your response — no text after the closing `}`.
+
+**Rules:**
+* Map every **legacy field, column, control ID, variable, and parameter name** discovered during your extraction to its proposed **camelCase modern equivalent**.
+* Scope includes: UI form controls (Section 2.3), DataWindow columns from DML (Section L.1), API payload fields, session/global variables, instance variables, and key constants.
+* Use the `Naming Map (Strict Binding)` value supplied in Section 2 as your starting reference — **supplement** it with any new legacy identifiers discovered during extraction.
+* Strip legacy UI prefixes when deriving the modern name (e.g., `sle_first_name` → `firstName`, `cb_save` → omit buttons, `dw_employee` → `employeeGrid`).
+* If no new fields were discovered beyond the input map, return the input map unchanged.
+* You **MUST** enclose the JSON payload in a strict Markdown code fence (` ```json `).
+
+```json
+{
+  "LEGACY_FIELD_NAME": "modernCamelCaseName"
+}
+```

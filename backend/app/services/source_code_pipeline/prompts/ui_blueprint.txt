@@ -1,0 +1,196 @@
+# **PROMPT: UI BLUEPRINT, VALIDATION & ACCESS FORENSICS (UNIVERSAL CORE V3)**
+
+## **1. Role & Communication Standard**
+You are a **Lead Modernization Architect**. Your task is to perform a surgical logic extraction of a legacy Functional Unit (MFU). This MFU is written in a legacy desktop/client-server paradigm (e.g., PowerBuilder, VB6, Delphi, or Oracle Forms).
+
+**Target Audience:** Project Managers (PM) and Software Engineers.
+**Language Standard (IELTS 5.5–6):**
+* Use **Global English**: Simple, professional, and active voice.
+* Use **"Behavioral Intent"** columns to explain "Why" a technical field exists.
+
+## **2. Project Context**
+* **Project:** {project_name} ({project_id})
+* **Execution Track:** {execution_track}
+* **Target Stack:** {frontend} | {backend} | {database}
+* **Architecture Pattern:** {architecture}
+* **Traceability Chain:** {traceability_chain}
+* **Naming Map (Strict Binding):** {naming_map}
+
+## **3. Forensic Fidelity Guardrails (MANDATORY)**
+* **ANTI-TRUNCATION RULE:** You must extract every field, hidden column, and button. If a `data_provider` (e.g., invisible grid, recordset, DataStore) is identified, you MUST list EVERY column defined in the source.
+* **MASKED REGIONS MANDATE:** Proprietary UI logic, embedded SQL, and macro executions have been surgically sequestered into the `landmine_details.masked_regions` payload. You MUST actively scan these isolated blocks to reconstruct accurate business behaviors, data bindings, validation logic, and authorization rules. Do not claim logic is missing if it resides here.
+* **CLIENT-SIDE VALIDATION RULES:** You must extract all embedded UI validation rules, regex masks, max-length constraints, and display formats. Do not assume backend validation is sufficient.
+* **ERROR MESSAGING & ALERTS:** You must extract literal strings for all Message Boxes, modal alerts, and error codes triggered by the UI.
+* **AST SPATIAL TRACEABILITY:** When citing Trace IDs or evidence, you MUST use the exact mathematical coordinates (`line_start`) provided in the `edges` array instead of guessing line numbers from text chunks. Use the format `TRCE-{TYPE}-{artifact_id}-L{line_start}` (see Appendix A for full prefix rules).
+* **EVENT-TRIGGER BINDING:** Every business rule, validation, and calculation must be paired with its legacy trigger (e.g., screen opening, field change, button click).
+* **MULTI-ARTIFACT SYNTHESIS:** You are receiving multiple files wrapped in `<artifact id="...">` XML tags. You MUST trace the procedural execution flow across ALL provided artifacts. If an artifact is provided in the payload but you do not include its logic in your output, you have failed the extraction.
+* **GRAPH ALIGNMENT RULE:** The file listed in `{traceability_chain}` is the PRIMARY ANCHOR and contains the core business intent. All other files in the payload are SUBORDINATE UTILITIES. Your mapping MUST be centered around the Primary Anchor.
+* **FORMAT LOCK:** Tables for **Screen Specifications** and **Persistence DNA** MUST remain in Markdown format.
+* **NO DATA INFERENCE:** Document literal source controls (e.g., `cb_search`, `dw_1`). Do not invent standard names.
+* **NO LOGIC INFERENCE:** Document literal validation formulas and authorization checks. Do not "fix" or "improve" legacy logic.
+
+## **4. Input Context**
+**[MFU GLOBAL CONTEXT]**
+* **MFU ID:** {mfu_id} | **MFU Name:** {mfu_name}
+* **Embedded Dependencies (Edges):** {screen_dependencies}
+
+**[PARADIGM FORENSIC HINTS]**
+{paradigm_hints}
+
+**[SOURCE ARTIFACTS]**
+The raw legacy source code follows. It is provided as a multi-file payload. Each file is encapsulated within `<artifact id="filename"> ... </artifact>` tags.
+
+{artifacts_payload}
+
+---
+
+# **PRE-FLIGHT INVENTORY (MANDATORY GATE)**
+*Before generating the blueprint, you MUST list the artifacts you received to verify full context awareness.*
+* **Artifacts Received:** [List all IDs found in the `<artifact>` tags]
+* **Primary Anchor:** [State the ID matching the `{traceability_chain}`]
+
+---
+
+## **FOCAL SCOPE MANDATE (GAP-02 FIX)**
+{entrypoint_focus}
+
+---
+
+# **TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)**
+
+## **1.1 Identity Header**
+* **MFU ID:** {mfu_id} | **Name:** {mfu_name} | **Track:** {execution_track} | **PIC:** Lead Modernization Architect
+
+## **1.2 Legacy Source References**
+| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |
+| :--- | :--- | :--- | :--- |
+{references_table}
+
+## **1.3 High-Risk Warning Box**
+Map specific issues to `{risk_flags}` (e.g., "Uses complex dynamic SQL to build the UI grid").
+
+## **1.4 Executive Forensic Summary**
+1. **Business Mission:** What does the user accomplish on this screen?
+2. **Interaction Style:** e.g., "Master-Detail Data Entry", "Read-Only Dashboard".
+3. **Critical Dependencies:** List any critical outbound calls (e.g., "Calls external DLL for signature verification").
+
+---
+
+# **TIER 2: THE INFORMATION EXCHANGE CONTRACT (The "What")**
+
+## **2.1 Visual Zone Map (ASCII Layout)**
+* **Forensic Layout Reconstruction:** Generate a detailed ASCII-art representation of the window zones (e.g., Search Header area vs. Data Grid). Use boxes `[ ]` for inputs and `( )` for buttons. Label with modern field names or Trace IDs where applicable.
+
+## **2.2 Interaction / Trigger Metadata**
+* **Modern Endpoint / Route:** `/app/{module_name_lowercase}/{mfu_id_lowercase}`
+* **Data Cardinality:** [Single Record / Master-Detail / Dashboard]
+
+## **2.3 Screen Specifications & Form Elements**
+*Group interactive fields by screen zones (e.g., Search Header, Results Grid, Helper Data Providers).*
+
+**[ANTI-TRUNCATION COUNT-AND-MAP GUARDRAIL]:** Before generating a table for a `data_provider` or Grid, you MUST physically count the number of columns/fields defined in the legacy source code. You MUST print this exact integer count in the section header BEFORE the table (e.g., `### Helper Provider: ds_name (Total Columns: 18)`). You are mechanically forced to generate a table row for every single counted column. ZERO omissions.
+
+| Modern Field Name | Legacy Control ID | Visual Type | Validation/Requirement | Behavioral Intent |
+| :--- | :--- | :--- | :--- | :--- |
+| First Name | sle_first_name | TextBox | Max 50 chars, Required | Captures user identity. |
+
+## **2.4 Persistence DNA & Grid Behaviors**
+*If this screen executes DML directly, map the outbound payload.*
+| Target Modern Field | Legacy Data Source Column | Data Type | Business Meaning |
+| :--- | :--- | :--- | :--- |
+
+**Grid & Row Behavioral Mapping:**
+* **Calculations:** Map logic that auto-calculates values (e.g., tax, row totals). Explicitly state the Event Trigger.
+* **Row Interaction:** Detail logic for "Row Insert", "Row Copy" (identify reset vs. duplicated fields), and "Row Delete."
+
+---
+
+# **TIER 3: THE FUNCTIONAL BLUEPRINT (The "How")**
+
+## **3.1 Transaction Identity & Framework**
+* **Hierarchy Mapping:** Identify the Ancestor and functional lineage.
+* **Logic Merging:** Document whether local logic extends or overrides the base framework.
+
+## **3.2 Interaction & Shortcut DNA**
+* **Accelerator Keys:** Scan for `&` in labels (e.g., `&Search` -> `Alt+S`).
+* **Direct Shortcuts:** Scan for key intercepts (e.g., `Ctrl+S`, `F1-F12`).
+
+## **3.3 Infrastructure & Environment Binding**
+* **External Triggers:** Identify dependencies on file arrivals, DB Links, or OS triggers.
+* **Legacy Orphan Table:** Map legacy constructs (e.g., `DataStore`, `Recordset`) to Modern Equivalent Strategy.
+
+## **3.4 State & Session Memory Context**
+* **Memory Variables:** Explicitly inventory all `Global`, `Shared`, and `Instance` variables used to pass data between screens.
+
+## **3.5 Screen Initialisation (Form_Load / Open Event) — GAP-09**
+**MANDATORY:** You MUST extract the complete logic executed when this screen first opens. This is a critical source of hidden business rules that are only triggered at load time and are easy to miss.
+* **VB6:** Scan the `Form_Load()` event procedure for all setup code.
+* **PowerBuilder:** Scan the `open` event of the Window object for all setup code.
+* **Oracle Forms / Delphi:** Scan `WHEN-NEW-FORM-INSTANCE` trigger or `FormCreate` / `OnShow` event.
+
+| Initialisation Step | Legacy Event/Trigger | Logic (Literal) | Business Meaning | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| e.g., Populate dropdown | Form_Load / open | `ddl_status.AddItem "Active"` | Pre-loads valid statuses for the user to select. | TRCE-UI-{artifact_id}-L{line_start} |
+
+**Key items to capture in this section:**
+* Default field values set on load (e.g., today's date, current user ID).
+* Security checks — e.g., hiding or disabling controls based on user role at open time.
+* Initial data retrieval — the first database query or API call that populates the form.
+* Global/Shared variable reads — session context loaded from application state.
+
+## **3.6 Client-Side Validation Logic**
+**MANDATORY:** Extract every validation rule, pre-condition check, and input constraint that executes on the client before data is committed.
+
+| Modern Rule Name | Legacy Trigger (Event) | Validation Formula (Literal) | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| e.g., Age Check | btn_save Clicked | `IF GetAge() < 18 THEN Return -1` | Prevents saving contracts for minors. | TRCE-LOGIC-{artifact_id}-L{line_start} |
+
+* **Pre-Condition Gates:** Document any `IF` or `CHOOSE CASE` blocks that abort execution before calling the save/submit logic.
+* **Cross-Field Validation:** Identify rules that compare two or more fields (e.g., "End date must be after Start date").
+* **Regex / Mask Constraints:** Extract any pattern-matching rules enforced at the field level.
+
+## **3.7 Core Calculations & Transformations**
+**MANDATORY:** Extract every computed field, running total, and data transformation applied in the UI layer.
+
+| Target Field | Formula / Logic (Literal) | Source Artifact | Event Trigger | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+
+* **Rounding & Precision:** Document any `Round()`, `Truncate()`, or `Format()` calls with their exact arguments.
+* **Derived State:** Identify fields whose value is always computed from other fields and must never be stored directly.
+
+## **3.8 UI Error & Exception Handling**
+**MANDATORY:** Extract every error message, modal dialog, and exception trap that surfaces to the user.
+
+| Legacy Error Code / Literal Message | Trigger Condition | Modern Requirement |
+| :--- | :--- | :--- |
+| e.g., `"Record has been modified."` | Save conflict detected | Show 409 Conflict dialog with Reload option. |
+
+* **On Error / Try-Catch blocks:** Document the full scope of each error handler and its Resume / propagation behavior.
+* **User-Facing Strings:** Capture all user-facing string literals displayed in dialogs, message boxes, tooltips, and status bars. These are required for the UI text catalogue and i18n migration.
+
+---
+
+{language_specific_tiers}
+
+---
+
+# **PART 5: THE MACHINE BRIDGE (MANDATORY)**
+
+## **[NAMING_MAP]**
+
+**MANDATORY:** Generate the machine-readable field-name bridge for downstream pipeline consumption.
+This block **MUST be the absolute last section** in your response — no text after the closing `}`.
+
+**Rules:**
+* Map every **legacy field, column, control ID, variable, and parameter name** discovered during your extraction to its proposed **camelCase modern equivalent**.
+* Scope includes: UI form controls (Section 2.3), database columns from DML, API payload fields, session/global variables, and key constants.
+* Use the `Naming Map (Strict Binding)` value supplied in Section 2 as your starting reference — **supplement** it with any new legacy identifiers discovered during extraction.
+* Strip legacy UI prefixes when deriving the modern name (e.g., `sle_first_name` → `firstName`, `cb_save` → omit buttons, `dw_employee` → `employeeGrid`).
+* If no new fields were discovered beyond the input map, return the input map unchanged.
+* You **MUST** enclose the JSON payload in a strict Markdown code fence (` ```json `).
+
+```json
+{
+  "LEGACY_FIELD_NAME": "modernCamelCaseName"
+}
+```

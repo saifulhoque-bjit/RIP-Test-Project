@@ -1,0 +1,73 @@
+# **LANGUAGE FORENSIC ADDENDUM: COBOL — API CONTRACTS**
+*(Injected into Universal Core V3 at the language_specific_tiers slot)**
+*(Primary use: COBOL .cpy COPY book artifacts classified as `data_provider`)*
+
+---
+
+## **L.1 COPY Book Field Table**
+**MANDATORY:** A COBOL COPY book is a shared data definition — it is the equivalent of a modern shared DTO or database schema. Every field MUST be extracted with its full PIC clause.
+
+**[ANTI-TRUNCATION GUARDRAIL — COPY BOOK EDITION]:** Count every elementary item (leaf-level field) in the COPY book. Print the count before the table. Generate one row per elementary item. ZERO omissions — FILLER fields are schema gaps and must be documented as padding.
+
+| Level | Field Name (COBOL) | PIC Clause | Implied Decimal? | Length (bytes) | Modern DTO Field | Modern Type | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| [01/05/10] | [EMP-ID] | [PIC 9(8)] | [N] | [8] | [employeeId] | [Long] | [Unique employee identifier] |
+| [05] | [EMP-SALARY] | [PIC 9(7)V99] | [Y: 2 dp] | [9] | [employeeSalary] | [Decimal(9,2)] | [Gross monthly salary] |
+| [05] | [FILLER] | [PIC X(3)] | [N] | [3] | [_padding_01] | [ignored] | [Alignment padding — no business value] |
+
+**PIC Clause Type Mapping:**
+* `PIC X(n)` → `String(n)` — character string, fixed length
+* `PIC 9(n)` → `Long` or `Integer` — unsigned integer
+* `PIC S9(n)` → `Long` (signed) — signed integer
+* `PIC 9(n)V9(m)` → `Decimal(n+m, m)` — implied decimal (no actual decimal point stored)
+* `PIC S9(n)V9(m) COMP-3` → `Decimal` (packed decimal) — two digits per byte, sign nibble
+* `PIC 9(n) COMP` / `COMP-4` → Binary integer (`Short` / `Int` / `Long` depending on size)
+
+---
+
+## **L.2 REDEFINES → Discriminated Type Mapping**
+**MANDATORY:** COBOL `REDEFINES` overlays the same memory with a different field layout. This is the legacy equivalent of a modern union type or discriminated type. Every REDEFINES clause MUST be documented.
+
+| Base Field | REDEFINES Field | Base PIC | Redefines PIC | Discriminator Condition | Modern Representation |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [PAYMENT-AMOUNT] | [PAYMENT-AMOUNT-X] | [PIC 9(8)V99] | [PIC X(10)] | [e.g., IF PAYMENT-TYPE = 'C'] | [Union / sealed class with 2 variants] |
+
+---
+
+## **L.3 OCCURS DEPENDING ON → Dynamic Array**
+**MANDATORY:** COBOL `OCCURS DEPENDING ON` defines variable-length arrays. These are the legacy equivalent of a modern `List<T>` with a maximum size constraint.
+
+| Array Field Name | Min Occurs | Max Occurs | Depending On Variable | Element Layout | Modern Equivalent |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [ORDER-LINE] | [1] | [50] | [ORDER-LINE-COUNT] | [See sub-fields below] | `List<OrderLine>` (max 50) |
+
+* **Element Sub-Fields:** Document every sub-field within the OCCURS group — these become the properties of the element type in the modern List.
+* **Index Variables:** Identify `INDEXED BY` clauses — the index variable name is used in `SET` statements rather than plain arithmetic subscripts.
+
+---
+
+## **L.4 LINKAGE SECTION — Subprogram Call Interface**
+**MANDATORY:** The LINKAGE SECTION defines the input/output contract for a called COBOL subprogram. It is the direct equivalent of a modern service method signature.
+
+**Calling Convention:** Document the `CALL 'PROGNAME' USING param1 param2` statements that invoke this subprogram, including which programs call it.
+
+| Parameter Position | Field Name (LINKAGE) | PIC Clause | Direction | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| [1] | [LS-EMPLOYEE-ID] | [PIC 9(8)] | [Input] | [Employee to retrieve] |
+| [2] | [LS-RESULT-CODE] | [PIC S9(4)] | [Output] | [0 = success, -1 = not found, -2 = error] |
+| [3] | [LS-EMPLOYEE-REC] | [PIC X(200)] (group) | [Output] | [Full employee record returned to caller] |
+
+* **Return Code Convention:** Document the exact return code values and their meanings — these map to modern API HTTP status codes or service response envelopes.
+* **BY REFERENCE vs. BY CONTENT:** Note if `BY CONTENT` is used — it passes a copy, not a pointer, so the caller's data is not modified.
+
+---
+
+## **L.5 DB2 Table Binding (EXEC SQL SELECT INTO)**
+*Apply this section only if the COPY book is used as a host variable structure for DB2 embedded SQL.*
+
+| DB2 Table | COPY Book Structure Bound | Key Columns | SQL Operation | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| [TABLE_NAME] | [WS-EMPLOYEE (01-level copy)] | [EMP-ID] | [SELECT INTO / INSERT / UPDATE] | [What data contract this represents] |
+
+* **DCLGEN Output:** If a DCLGEN-generated COPY book is present, extract the full column list and map each `DCL-` prefixed field to its table column.
+* **Null Indicator Variables:** Identify `-n` indicator variable arrays used with nullable columns — these must map to nullable types in the modern schema.

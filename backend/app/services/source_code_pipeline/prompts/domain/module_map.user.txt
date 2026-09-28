@@ -1,0 +1,12 @@
+ALL FILES IN THE SYSTEM (names only, for context):
+%%FILE_INDEX%%
+
+BATCH TO ANALYSE (full content):
+%%BATCH%%
+
+OUTPUT — ONLY this JSON between the markers:
+<<<MAP>>>
+{"files": [
+  {"id": "<file id>", "primary_domain": "…business capability…", "key_entities": ["table/entity"], "operations": ["verb noun"], "is_shared": false, "confidence": "high|medium|low"}
+]}
+<<<ENDMAP>>>

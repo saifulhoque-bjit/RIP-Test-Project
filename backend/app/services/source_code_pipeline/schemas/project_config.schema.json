@@ -1,0 +1,238 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RIP Project Configuration Schema (Polyglot)",
+  "type": "object",
+  "required": ["project"],
+  "properties": {
+    "_data_dictionary": {
+      "type": "object"
+    },
+    "modernization_manifesto": {
+      "type": "object",
+      "description": "High-level architectural guidelines injected into Spec Extractor prompts.",
+      "additionalProperties": true
+    },
+    "project": {
+      "type": "object",
+      "required": ["id", "name", "target_stack"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 2,
+          "pattern": "^[A-Za-z0-9_\\-]+$",
+          "description": "Stable project identifier used for provenance. Lowercase snake_case (e.g. 'vb6_smias', 'cobol_ecbls') or a 'PRJ-...' code — both accepted."
+        },
+        "name": { "type": "string", "minLength": 3 },
+        "client": { "type": "string" },
+        "source_path": { "type": "string" },
+        "plugins": {
+          "type": "array",
+          "description": "List of language plugins to load into the microkernel.",
+          "items": { "type": "string" }
+        },
+        "source_paradigm": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$",
+          "description": "$DYNAMIC_ENUM: registry.paradigm_language (lowercase; digits allowed, e.g. 'vb6')"
+        },
+        "target_stack": {
+          "type": "object",
+          "required": ["frontend", "backend", "infrastructure", "architecture", "database"],
+          "properties": {
+            "frontend": { "type": "string" },
+            "backend": { "type": "string" },
+            "batch": { "type": "string" },
+            "infrastructure": { "type": "string" },
+            "architecture": { "type": "string" },
+            "database": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "target_architecture": {
+      "type": "object",
+      "description": "OPTIONAL, SOURCE-LANGUAGE-INDEPENDENT target-platform architecture contract consumed by Stage 6 (Target Architecture Synthesis). Describes the NEW system only — it contains no reference to source constructs (forms, copybooks, DataWindows), so the identical schema serves PowerBuilder, VB6, COBOL, and any future source language; the source paradigm lives in project.source_paradigm + project.plugins. All fields are optional: any left blank are proposed by the generator (grounded in target_stack + modernization_manifesto) and surfaced in the architecture doc's open_questions for the human approval gate. Values are also target-tech-agnostic (free strings / lists / a style string), so a future .NET or Go target needs different values, not a different schema.",
+      "properties": {
+        "topology": {
+          "type": "string",
+          "description": "Target deployment topology for Stage 6. Recommended default 'modular-monolith' (maximises autonomy for unattended code generation). 'microservices' is allowed but flagged higher-risk. Free string; when unset the generator defaults to modular-monolith (or maps from target_stack.architecture) and records the choice in the decision ledger."
+        },
+        "system": {
+          "type": "object",
+          "description": "Tier-B system/platform architecture inputs consumed by Stage 6. All optional: any blank field is DECIDED by the generator from a grounded default (config + modernization_manifesto + best practice) and recorded in the decision ledger — never raised as a blocking question. Source-language-independent (describes the target only).",
+          "properties": {
+            "data_ownership": { "type": "string", "description": "e.g. 'schema-per-module' (monolith default), 'database-per-service'." },
+            "identity": {
+              "type": "object",
+              "description": "Authentication ISSUANCE (not just enforcement): who mints tokens, refresh, and the RBAC role source.",
+              "properties": {
+                "issuer": { "type": "string" },
+                "token": { "type": "string" },
+                "refresh": { "type": "boolean" },
+                "rbac_source": { "type": "string" }
+              },
+              "additionalProperties": true
+            },
+            "config_secrets": { "type": "object", "additionalProperties": true },
+            "deployment": {
+              "type": "object",
+              "properties": {
+                "packaging": { "type": "string" },
+                "ci": { "type": "string" },
+                "iac": { "type": "string" },
+                "environments": { "type": "array", "items": { "type": "string" } }
+              },
+              "additionalProperties": true
+            },
+            "data_migration": { "type": "object", "additionalProperties": true },
+            "observability": { "type": "object", "additionalProperties": true },
+            "testing": { "type": "object", "additionalProperties": true },
+            "concurrency": { "type": "string", "description": "e.g. 'optimistic-locking'." },
+            "audit": { "type": "boolean" }
+          },
+          "additionalProperties": true
+        },
+        "build": {
+          "type": "string",
+          "description": "Target build tooling, e.g. 'Maven (backend) + pnpm (frontend)'. Free string — no assumed language."
+        },
+        "runtime": {
+          "type": "string",
+          "description": "Target runtime(s)/versions, e.g. 'JDK 21 / Node 20'. Free string."
+        },
+        "tech_allowlist": {
+          "type": "array",
+          "description": "The ONLY technologies the code generator may use. The Stage-6 critic rejects any framework/library/version not on this list (anti-hallucination guardrail). Recommended to fill.",
+          "items": { "type": "string" }
+        },
+        "architecture_style": {
+          "type": "string",
+          "description": "Named target style. Common values: 'layered' | 'hexagonal' | 'modular-monolith' | 'microservices'. Free string to remain future-proof; when set it implies default layering if 'layers' is omitted."
+        },
+        "layers": {
+          "type": "array",
+          "description": "Explicit logical layers and their permitted dependencies. Omit to let the generator derive them from architecture_style.",
+          "items": {
+            "type": "object",
+            "required": ["id", "name"],
+            "properties": {
+              "id": { "type": "string", "description": "e.g. 'ARC-LYR-001'" },
+              "name": { "type": "string" },
+              "responsibility": { "type": "string" },
+              "allowed_dependencies": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "IDs of layers this layer may depend on."
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "component_types": {
+          "type": "array",
+          "description": "Catalog of the code artifact kinds the generator emits, with where/how to place and name them.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "description": "e.g. 'Controller', 'Service', 'Repository', 'Entity', 'DTO', 'ReactComponent'" },
+              "layer": { "type": "string", "description": "Owning layer id or name." },
+              "folder": { "type": "string" },
+              "naming": { "type": "string", "description": "Naming pattern, e.g. '<Feature>Controller'." },
+              "template_ref": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "naming_conventions": {
+          "type": "object",
+          "description": "Free-form naming rules (packages, classes, endpoints, tables, etc.).",
+          "additionalProperties": true
+        },
+        "folder_structure": {
+          "type": "object",
+          "properties": {
+            "root": { "type": "string" },
+            "mapping_rules": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": true
+        },
+        "cross_cutting": {
+          "type": "array",
+          "description": "Cross-cutting concern decisions (security, logging, error handling, transactions, configuration, i18n, ...).",
+          "items": {
+            "type": "object",
+            "required": ["concern"],
+            "properties": {
+              "concern": { "type": "string" },
+              "approach": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "nfrs": {
+          "type": "array",
+          "description": "Non-functional targets the architecture must satisfy (performance, concurrency, availability, batch SLAs, ...).",
+          "items": {
+            "type": "object",
+            "required": ["category"],
+            "properties": {
+              "category": { "type": "string" },
+              "target": { "type": "string" },
+              "architectural_response": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "batch_strategy": {
+          "type": "object",
+          "description": "TARGET batch technology + policy. Populated more heavily by batch-centric sources (e.g. COBOL) and lightly by UI-centric ones (e.g. VB6), but uses the same keys either way. Online-vs-batch classification itself comes paradigm-neutrally from module_manifest execution_track.",
+          "properties": {
+            "technology": { "type": "string", "description": "e.g. 'Spring Batch', 'Quartz', 'AWS Batch'." },
+            "scheduling": { "type": "string" },
+            "chunking": { "type": "string" },
+            "restart_policy": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "data": {
+          "type": "object",
+          "description": "Target persistence + transaction policy.",
+          "properties": {
+            "persistence": { "type": "string", "description": "e.g. 'Spring Data JPA / Hibernate'." },
+            "migrations": { "type": "string", "description": "e.g. 'Flyway'." },
+            "transaction_boundaries": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "source_filters": {
+      "type": "object",
+      "description": "OPTIONAL vendor-library/framework exclusion for scan + module derivation. Framework code (e.g. PowerBuilder PFC) is not migrated as business modules, so it is skipped. Per-language defaults come from prompts/language_profiles.yaml (library_excludes); set use_paradigm_defaults=false to disable them, or add exclude_dirs / exclude_globs to extend.",
+      "properties": {
+        "use_paradigm_defaults": { "type": "boolean", "description": "Apply the active language's library_excludes from language_profiles.yaml (default true)." },
+        "exclude_dirs": { "type": "array", "items": { "type": "string" }, "description": "Additional directory names to exclude (matched case-insensitively against any path segment)." },
+        "exclude_globs": { "type": "array", "items": { "type": "string" }, "description": "Additional filename globs to exclude (e.g. 'lib_*')." }
+      },
+      "additionalProperties": true
+    },
+    "llm": {
+      "type": "object",
+      "description": "LLM provider configuration for the RIP pipeline.",
+      "additionalProperties": true
+    },
+    "stage2_5": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "stage5": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

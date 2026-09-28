@@ -1,0 +1,56 @@
+# RIP on 10.16.16.8 (/home/bjit/rip): backend stack, frontend, and the OTel
+# monitor AMS pulls. Ports: 7900 API, 7901 frontend, 7788 monitor. Postgres,
+# Neo4j and Redis are not published on the host.
+#   docker compose up -d --build
+name: rip
+
+include:
+  - path:
+      - backend/docker-compose.yml
+      - rip-logging.override.yml
+      - rip-ports.override.yml
+
+services:
+  frontend:
+    build:
+      context: frontend
+      args:
+        VITE_ENV: development
+        VITE_API_BASE_URL: http://10.16.16.8:7900/api/v1
+        VITE_CDN_URL: https://d1h706qqbkkhjo.cloudfront.net/
+    image: rip-frontend:server
+    restart: unless-stopped
+    ports:
+      - "7901:80"
+    depends_on:
+      - api
+
+  # AMS's "Custom Monitor API (Pull)" connector reads /stats, /issues and
+  # /occurrences here. 7787 is the progCoder monitor.
+  rip-monitor:
+    build: otel-monitor
+    image: rip-monitor:server
+    restart: unless-stopped
+    environment:
+      MONITOR_API_KEY: ${RIP_MONITOR_API_KEY:?set RIP_MONITOR_API_KEY in .env}
+    ports:
+      - "7788:7787"
+    volumes:
+      - rip_monitor_data:/data
+
+  rip-otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.120.0
+    restart: unless-stopped
+    # The Docker log files are readable by root only.
+    user: "0:0"
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      MONITOR_API_KEY: ${RIP_MONITOR_API_KEY}
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - rip-monitor
+
+volumes:
+  rip_monitor_data:

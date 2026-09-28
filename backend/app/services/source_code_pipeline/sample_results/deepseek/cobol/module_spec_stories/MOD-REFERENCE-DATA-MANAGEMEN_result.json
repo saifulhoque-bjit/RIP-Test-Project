@@ -1,0 +1,1439 @@
+{
+  "status": "success",
+  "module_id": "MOD-REFERENCE-DATA-MANAGEMEN",
+  "spec_generation": {
+    "grouped_specs": {
+      "markdown_specs": [
+        {
+          "module_id": "MOD-REFERENCE-DATA-MANAGEMEN",
+          "feature_unit_id": "SYS-DATA-01",
+          "filename": "1_APISpec_padflpcb.md",
+          "content": "# PRE-FLIGHT INVENTORY\n- **Artifacts Received:** `padflpcb`, `pautbpcb`\n- **Primary Anchor:** `padflpcb`\n\n---\n\n# TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)\n\n## 1.1 Identity Header\n- **MFU ID:** SYS-DATA-01 | **Name:** MOD-REFERENCE-DATA-MANAGEMEN – Ungrouped Data Objects (Orphans) (2 items) | **Track:** Mixed‑Track | **PIC:** Lead Modernization Architect\n\n## 1.2 Legacy Source References\n| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |\n| :--- | :--- | :--- | :--- |\n| pautbpcb | data_provider | PAUTBPCB.CPY | helper (IMS PCB mask for PAUT database) |\n| padflpcb | data_provider | PADFLPCB.CPY | helper (IMS PCB mask for PADFL database) |\n\n## 1.3 High-Risk Warning Box (Confidence < 90%)\n**Risk Map Binding:** `orphan_bucket`  \n| Identified Risk | Trigger | Explanation |\n| :--- | :--- | :--- |\n| No REDEFINES/OCCURS/COMP‑3 | Not present | The structures are simple flat PCM masks; no complex overlays. |\n| Orphan status – missing procedure logic | `orphan_bucket` risk flag | No PROCEDURE DIVISION or calling code found. The exact IMS call interface (GU, GN, REPL, etc.) and authorization rules cannot be reconstructed from these copybooks alone. Modernization must supplement with additional documentation. |\n| Confidence: High (95%) | | The artifacts are self‑contained PCB definitions; risk of misinterpretation is low. |\n\n## 1.4 Executive Forensic Summary (Requirement Base)\n1. **Business Mission:** Defines the Program Communication Block (PCB) mask structures for two IMS logical databases – `PADFL` and `PAUT`. These masks are the data‑exchange contract between application programs and IMS DB, specifying database name, segment level, status, processing options, and feedback areas.\n2. **Contract Style:** Shared COPY Book DTO (IMS PCB Mask). Each 01‑level record represents the entire PCB layout used by IMS DL/I calls.\n3. **Data Integrity Requirement:** The `PADFL-PCB-STATUS` and `PAUT-PCB-STATUS` fields (PIC X(02)) carry IMS status codes after each DL/I call. Any modern wrapper must check these codes immediately after a simulated IMS operation to detect “GE” (segment not found), “II” (invalid call), etc. FILLER fields are reserved binary areas and must be preserved as opaque padding.\n\n---\n\n# TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)\n\n## 2.1 API Endpoint Strategy\n- **Modern Endpoint Route:** Not directly exposed as a REST endpoint. The PCB masks will be internal Value Objects used by an IMS access service (e.g., `ImsPcbMask` DTO). If a diagnostic endpoint were needed, it would be: `/api/v1/mod-reference-data-managemen/sys-data-01/pcb-info` (returns PCB configuration).\n- **Data Cardinality:** Single Record per DL/I call context; multiple PCBs are typically grouped in a PSB.\n\n## 2.2 Data Retrieval (GET) Contract\n*Note: This mapping treats the PCB mask as a data object that could be returned to describe an active IMS session. It is derived solely from the COPY book structure, with no real READ operation in the provided source.*  \n\n**Request Parameters (Input)**  \nNone – the PCB mask is populated internally after an IMS call.\n\n**Response Body (Output Payload) – based on `padflpcb` (primary)**  \n| JSON Field Name | Legacy Source Column | PIC Clause | Data Type | Business Meaning (IELTS 5.5‑6) | Trace ID |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| dbdName | PADFL-DBDNAME | PIC X(08) | String(8) | Name of the IMS database (DBD) this PCB accesses | TRCE-IO-padflpcb-L29 |\n| segmentLevel | PADFL-SEG-LEVEL | PIC X(02) | String(2) | Hierarchical level number of the current segment in the database | TRCE-IO-padflpcb-L30 |\n| statusCode | PADFL-PCB-STATUS | PIC X(02) | String(2) | IMS status code after the last DL/I call (e.g., “ ”, “GE”) | TRCE-IO-padflpcb-L31 |\n| processingOption | PADFL-PCB-PROCOPT | PIC X(04) | String(4) | Permitted operations on this PCB (e.g., “G ”, “GN ”, “REPL”) | TRCE-IO-padflpcb-L32 |\n| (padding) | FILLER | PIC S9(05) COMP | Ignored | Binary padding – no modern business value; kept for alignment | TRCE-IO-padflpcb-L33 |\n| segmentName | PADFL-SEG-NAME | PIC X(08) | String(8) | Name of the IMS segment currently positioned under the PCB | TRCE-IO-padflpcb-L34 |\n| keyFeedbackLength | PADFL-KEYFB-NAME | PIC S9(05) COMP | Short | Length of the concatenated key returned in the key feedback area | TRCE-IO-padflpcb-L35 |\n| numSensitiveSegments | PADFL-NUM-SENSEGS | PIC S9(05) COMP | Short | Number of segments in this database to which the program has sensitivity | TRCE-IO-padflpcb-L36 |\n| keyFeedbackArea | PADFL-KEYFB | PIC X(255) | String(255) | Concatenated key of the segment currently positioned by the DL/I call | TRCE-IO-padflpcb-L37 |\n\n**Supporting artifact `pautbpcb`:** Identical field layout with prefix `PAUT` instead of `PADFL`. It represents the PCB mask for the `PAUT` IMS database.\n\n## 2.3 Transactional (POST/PUT) Contract\nNot applicable – the COPY books define read‑only masks; no input payload is accepted.\n\n## 2.4 Response & Error Mapping\n| HTTP Code | Meaning | Modern Action (Global English) |\n| :--- | :--- | :--- |\n| N/A | IMS status code “ ” (spaces) | Operation successful – proceed to next step. |\n| N/A | IMS status code “GE” | Segment not found – return empty result or raise data not found exception. |\n| N/A | IMS status code “II” | Invalid call – perhaps database name or segment name is wrong. |\n| N/A | IMS status code “FB” | End of database reached when browsing. |\n\n---\n\n# TIER 3: THE FUNCTIONAL BLUEPRINT (The Persistence & Logic “How”)\n\n## 3.1 Transaction Identity\n- **Logic Source:** Orphan artifacts – no PROCEDURE DIVISION, no CICS/IMS command‑level calls, no SQL. The COPY books are declarative PCB mask definitions only.\n- **Authority:** Unknown – the calling program that issues the DL/I call is not present.\n\n## 3.2 Business Data Rules\n*No procedural logic found in provided artifacts. No filters, mandatory checks, 88‑level conditions, or SQLCODE validations detected.*\n\n## 3.3 Persistence DNA\nNot applicable – the COPY books do not contain any IMS DL/I verbs; they only declare the layout of the PCB. Persistence behaviour (read, update, delete, commit) is governed by the absent calling program and the PSB definition.\n\n## 3.4 Infrastructure & External Integrations\n- **External Triggers:** These PCB masks are attached to a PSB (Program Specification Block). The actual triggers are COBOL `CALL ‘CBLTDLI’ USING function-pcb-ioarea` statements, which reside in a separate program not provided.\n- **Legacy Orphan Artifacts:**  \n  - **IMS PCB Mask** → **Modern Equivalent Strategy:** Replace with a plain Java POJO (`ImsPcbMask`) holding the same fields. The actual IMS access will be delegated to an IMS‑connect adapter or replaced by a direct database query after modernization.\n\n## 3.5 Server‑Side Authorization & Access Control\n**MANDATORY:** No authorization rules found in the provided sources. No `IF` checks, row‑level security clauses, or CICS `QUERY SECURITY` statements are present. Authorization must be derived from the PSB `SENSEG` and `PROCOPT` definitions, which are external to these copybooks.\n\n## 3.6 Authorization Rules Contract\n| Trace ID | Legacy Rule (Literal) | Target Modern Claim/Role | Operation Gated | Business Meaning |\n| :--- | :--- | :--- | :--- | :--- |\n| N/A | Not available in provided artifacts | – | – | No authorization gates detected. |\n\n## 3.7 Security & Session Context\n- **Identity Mapping:** No identity variables (WS-USER-ID, etc.) present. Context is limited to the PCB status code and the database name, which must be set by the calling module.\n\n---\n\n# TIER 4: COBOL DATA CONTRACT ADDENDUM\n\n## L.1 COPY Book Field Table – `padflpcb` (Primary)\n**Elementary Item Count:** 9 (including 1 FILLER)\n\n| Level | Field Name (COBOL) | PIC Clause | Implied Decimal? | Length (bytes) | Modern DTO Field | Modern Type | Business Meaning |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| 05 | PADFL-DBDNAME | PIC X(08) | N | 8 | dbdName | String | IMS database name (DBD) |\n| 05 | PADFL-SEG-LEVEL | PIC X(02) | N | 2 | segmentLevel | String | Hierarchical level of current segment |\n| 05 | PADFL-PCB-STATUS | PIC X(02) | N | 2 | statusCode | String | DL/I call status code |\n| 05 | PADFL-PCB-PROCOPT | PIC X(04) | N | 4 | processingOption | String | Authorised operations on this PCB |\n| 05 | FILLER | PIC S9(05) COMP | N | 2* | (padding) | Ignored | Binary padding – no business value |\n| 05 | PADFL-SEG-NAME | PIC X(08) | N | 8 | segmentName | String | Name of current IMS segment |\n| 05 | PADFL-KEYFB-NAME | PIC S9(05) COMP | N | 2* | keyFeedbackLength | Short | Length of key feedback area content |\n| 05 | PADFL-NUM-SENSEGS | PIC S9(05) COMP | N | 2* | numSensitiveSegments | Short | Count of sensitive segments for this DB |\n| 05 | PADFL-KEYFB | PIC X(255) | N | 255 | keyFeedbackArea | String | Concatenated key of the positioned segment |\n\n\\* `PIC S9(05) COMP` is a half‑word binary integer occupying 2 bytes (typical for IBM COBOL); length may vary by compiler – modern implementation must verify.\n\n## L.2 88‑Level Condition Names → Enum Mapping\n**None detected** – the two COPY books contain no 88‑level entries.\n\n## L.3 REDEFINES → Discriminated Type Mapping\n**None detected.**\n\n## L.4 OCCURS DEPENDING ON → Dynamic Array\n**None detected.**\n\n## L.5 LINKAGE SECTION – Subprogram Call Interface\n**Not applicable** – these COPY books are data providers, not LINKAGE SECTION definitions. They are typically included in WORKING‑STORAGE or LINKAGE to overlay the PCB.\n\n## L.6 DB2 Table Binding (EXEC SQL SELECT INTO / DCLGEN)\n**Not applicable** – these artifacts are IMS PCB masks, not DB2 host variable structures.\n\n## L.7 DB‑Tier Scope Boundary (MANDATORY DISCLAIMER – REPRODUCE VERBATIM)\n> **DB‑Tier Scope Boundary – Known Gap for Separate Validation**  \n> This document describes application‑tier DB access only. The following are explicitly OUT OF SCOPE and must be validated separately against the database catalog / DDL:  \n> - DB2 stored procedures, triggers, user‑defined functions, and CHECK constraints  \n> - DB2 table DDL / physical design and referential‑integrity (foreign‑key) rules  \n> - IMS DBD physical design (segment hierarchy, pointers, secondary indexing) and PSB SENSEG / PROCOPT internal semantics\n\n---\n"
+        },
+        {
+          "module_id": "MOD-REFERENCE-DATA-MANAGEMEN",
+          "feature_unit_id": "SYS-DATA-01",
+          "filename": "1_APISpec_pautbpcb.md",
+          "content": "# PRE-FLIGHT INVENTORY\n\n- **Artifacts Received:** padflpcb, pautbpcb  \n- **Primary Anchor:** pautbpcb  *(per FOCAL SCOPE MANDATE – GAP-02 FIX)*  \n\n---\n\n# TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)\n\n## 1.1 Identity Header\n- **MFU ID:** SYS-DATA-01  \n- **Name:** MOD-REFERENCE-DATA-MANAGEMEN - Ungrouped Data Objects (Orphans) (2 items)  \n- **Track:** Mixed-Track  \n- **PIC:** Lead Modernization Architect  \n\n## 1.2 Legacy Source References\n| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |\n| :--- | :--- | :--- | :--- |\n| pautbpcb | data_provider | PAUTBPCB.CPY | helper (primary anchor) |\n| padflpcb | data_provider | PADFLPCB.CPY | helper (supporting IMS PCB mask for a different database) |\n\n## 1.3 High-Risk Warning Box (Confidence < 90%)\n> **orphan_bucket** – Both artifacts are IMS PCB masks that reside in an ungrouped “orphan” bucket.  \n> **Risk mapping:**  \n> - **Unsynchronized definitions** – The layouts may have diverged from the actual PSBGEN; FILLER and COMP field sizes must be verified against the production PSB.  \n> - **FILLER misinterpretation** – The `PIC S9(05) COMP` FILLER field (4 bytes) could be mistakenly treated as application data if not explicitly ignored.  \n> - **Status code dependency** – Programs using these PCBs rely on absolute status-code checks (`\" \"`, `\"GE\"`, etc.); missing checks can cause silent data corruption.  \n\n## 1.4 Executive Forensic Summary (Requirement Base)\n1. **Business Mission:** Provide a standardised data contract for IMS DL/I calls against two separate card‑reference databases (PAUT and PADFL).  \n2. **Contract Style:** Shared COPY Book DTO – IMS PCB mask defining the feedback area returned by every DL/I operation.  \n3. **Data Integrity Requirement:** Every consuming program MUST inspect `PAUT-PCB-STATUS` (or `PADFL-PCB-STATUS`) after each DL/I call before using the returned `PAUT-KEYFB` area or proceeding to the next operation.\n\n---\n\n# TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API \"What\")\n\n**Centred on primary artifact `pautbpcb`. The supporting artifact `padflpcb` provides an identical mask for a different DBD; its fields mirror `PAUT-` with a `PADFL-` prefix.**\n\n## 2.1 API Endpoint Strategy\n- **Modern Endpoint Route:** `/api/v1/mod-reference-data-managemen/sys-data-01/ims/paut/pcb`  \n  *(returns the PCB feedback structure after an IMS DL/I call is executed by an adapter service)*\n- **Data Cardinality:** Single record (one PCB instance per DL/I call)\n\n## 2.2 Data Retrieval (GET) Contract\n*The PCB is an **output‑only** structure filled by DL/I. No application request parameters are stored in the PCB itself; the “GET” corresponds to a program reading the PCB after a call.*\n\n**Response Body (Output Payload)**\n| JSON Field Name | Legacy Source Column | PIC Clause | Data Type | Business Meaning (IELTS 5.5-6) | Trace ID |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| dbdName | PAUT-DBDNAME | PIC X(08) | String(8) | Name of the IMS database (DBD) that was accessed. | TRCE-IO-pautbpcb-L5 |\n| segLevel | PAUT-SEG-LEVEL | PIC X(02) | String(2) | Hierarchical level number of the retrieved segment. | TRCE-IO-pautbpcb-L5 |\n| pcbStatus | PAUT-PCB-STATUS | PIC X(02) | String(2) | IMS status code after call (e.g., spaces = good, ‘GE’ = segment not found). | TRCE-IO-pautbpcb-L5 |\n| pcbProcopt | PAUT-PCB-PROCOPT | PIC X(04) | String(4) | Processing options for the PCB (e.g., ‘G  ’ for read-only). | TRCE-IO-pautbpcb-L5 |\n| (ignored) | FILLER | PIC S9(05) COMP | int (4‑byte binary) | Alignment padding – no business value. | TRCE-IO-pautbpcb-L5 |\n| segName | PAUT-SEG-NAME | PIC X(08) | String(8) | Name of the lowest segment accessed. | TRCE-IO-pautbpcb-L6 |\n| keyfbLength | PAUT-KEYFB-NAME | PIC S9(05) COMP | int | Length of the concatenated key feedback (size of KEYFB). | TRCE-IO-pautbpcb-L7 |\n| numSensSegs | PAUT-NUM-SENSEGS | PIC S9(05) COMP | int | Number of sensitive segments in the PCB. | TRCE-IO-pautbpcb-L8 |\n| keyFeedback | PAUT-KEYFB | PIC X(255) | String(255) | Concatenated key of the segment that satisfied the DL/I call. | TRCE-IO-pautbpcb-L9 |\n\n## 2.3 Transactional (POST/PUT) Contract\n**Not applicable** – The PCB mask is a receive‑only structure; no data is written to it by the application.\n\n## 2.4 Response & Error Mapping\n| HTTP Code | Meaning | Modern Action (Global English) |\n| :--- | :--- | :--- |\n| 200 OK | PCB-STATUS = spaces (successful DL/I call) | Return the PCB fields in the response body. |\n| 404 Not Found | PCB-STATUS = ‘GE’ (segment not found) | Return empty result set with status code ‘GE’. |\n| 500 Internal Server Error | PCB-STATUS = any non‑blank, non‑space status (e.g., ‘AM’) | Log the status; return generic error. |\n\n---\n\n# TIER 3: THE FUNCTIONAL BLUEPRINT (The Persistence & Logic \"How\")\n\n## 3.1 Transaction Identity\n- **Logic Source:** Shared reusable COPY book (IMS PCB mask). No PROCEDURE DIVISION; all logic resides in calling programs.  \n- **Authority:** The COBOL program that issues the DL/I `CALL` using this PCB is responsible for any `EXEC SQL COMMIT WORK` or `EXEC CICS SYNCPOINT` (none present in the artifacts).\n\n## 3.2 Business Data Rules\n*No filters, joins, or mandatory state checks are embedded in the COPY book. The following rules are **conventional for IMS programs** using a PCB:*\n- **(Mandatory convention – inferred from IMS patterns):** After every DL/I call, the calling program MUST check that `PAUT-PCB-STATUS = SPACES` before using the returned key feedback or continuing to the next call. *(No explicit WORKING-STORAGE or PROCEDURE DIVISION checks are present in the extracted artifacts—this is a standard IMS contract.)*\n\n## 3.3 Persistence DNA\n| Property | Value (Literal) | Requirement for Modern Implementation |\n| :--- | :--- | :--- |\n| **Locking Policy** | Not applicable (PCB is a feedback area; locking is handled by IMS internals) | No locking needed at application layer. |\n| **SQLCODE Check** | None – PCB-STATUS is the IMS status mechanism. | Map PCB-STATUS values to exceptions (e.g., “GE” → `SegmentNotFoundException`). |\n| **COMMIT Frequency** | Determined by calling program. | Transaction boundaries are controlled by the service orchestrating the DL/I call. |\n| **Null Handling** | No nullable fields; all PIC X fields are space‑filled, COMP fields are zero‑valued when not set. | Use non‑null primitive types or Optionals only if IMS may return incomplete fields. |\n| **REDEFINES Type** | None found. | N/A |\n\n## 3.4 Infrastructure & External Integrations\n- **External Triggers:** IMS DL/I calls (`CALL 'CBLTDLI' USING function-code, pcb-mask, i/o-area`) executed by COBOL programs.  \n- **Legacy Orphan Artifacts:**  \n  - `PAUTBPCB` and `PADFLPCB` are IMS PCB masks – map to a PCB‑DTO in a Java IMS adapter (e.g., CTG or IMS Connect).  \n  - No VSAM, CICS COMMAREA, or DB2 artifacts present.\n\n## 3.5 Server-Side Authorization & Access Control\nNo authorization rules are embedded in the COPY book. The calling program environment (CICS, batch) enforces any security.\n\n## 3.6 Authorization Rules Contract\n*(Empty – no procedural authorization gates found in the artifacts.)*\n\n## 3.7 Security & Session Context\n- **Identity Mapping:** No identity variables present. The calling program’s user context is external to the PCB layout.\n\n---\n\n# TIER 4: COBOL DATA CONTRACT ADDENDUM\n\n## L.1 COPY Book Field Table\n**Primary artifact `PAUTBPCB.CPY` – IMS PCB Mask.**  \nElementary field count: **9**.\n\n| Level | Field Name (COBOL) | PIC Clause | Implied Decimal? | Length (bytes) | Modern DTO Field | Modern Type | Business Meaning |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| 01 | PAUTBPCB | (group) | N | 292 | pcbFeedback | object | Root level for the PCB feedback data. |\n| 05 | PAUT-DBDNAME | PIC X(08) | N | 8 | dbdName | String(8) | IMS database name (DBD) for this PCB. |\n| 05 | PAUT-SEG-LEVEL | PIC X(02) | N | 2 | segLevel | String(2) | Hierarchical level of the segment accessed. |\n| 05 | PAUT-PCB-STATUS | PIC X(02) | N | 2 | pcbStatus | String(2) | DL/I status code; spaces = successful call. |\n| 05 | PAUT-PCB-PROCOPT | PIC X(04) | N | 4 | pcbProcopt | String(4) | Processing options (e.g., ‘G   ’, ‘A   ’). |\n| 05 | FILLER | PIC S9(05) COMP | N | 4 | (ignored) | int | Alignment filler – no business meaning. |\n| 05 | PAUT-SEG-NAME | PIC X(08) | N | 8 | segName | String(8) | Name of the lowest segment accessed. |\n| 05 | PAUT-KEYFB-NAME | PIC S9(05) COMP | N | 4 | keyfbLength | int | Length (in bytes) of the key feedback area. |\n| 05 | PAUT-NUM-SENSEGS | PIC S9(05) COMP | N | 4 | numSensSegs | int | Number of sensitive segments defined for this PCB. |\n| 05 | PAUT-KEYFB | PIC X(255) | N | 255 | keyFeedback | String(255) | Concatenated key of the segment that satisfied the call. |\n\n**Supporting artifact `PADFLPCB.CPY`** – An analogous IMS PCB mask for the `PADFL` database. It follows the identical layout with fields prefixed `PADFL-` (e.g., `PADFL-DBDNAME`, `PADFL-SEG-LEVEL`, …). No separate field‑level table is warranted; the mapping is a simple prefix substitution.\n\n## L.2 88-Level Condition Names → Enum Mapping\n**None found** in `PAUTBPCB.CPY` or `PADFLPCB.CPY`. The COPY books define no 88-level condition-name entries.\n\n## L.3 REDEFINES → Discriminated Type Mapping\n**None found.**\n\n## L.4 OCCURS DEPENDING ON → Dynamic Array\n**None found.**\n\n## L.5 LINKAGE SECTION — Subprogram Call Interface\n**Not applicable.** These are COPY books, not LINKAGE SECTION entries of a called subprogram.\n\n## L.6 DB2 Table Binding (EXEC SQL SELECT INTO / DCLGEN)\n**Not applicable.** No DB2 host‑variable structures, DCLGEN output, or embedded SQL are present in either artifact.\n\n## L.7 DB-Tier Scope Boundary (MANDATORY DISCLAIMER — REPRODUCE VERBATIM)\n> **DB-Tier Scope Boundary — Known Gap for Separate Validation**  \n> This document describes application-tier DB access only. The following are explicitly OUT OF SCOPE  \n> and must be validated separately against the database catalog / DDL:  \n> - DB2 stored procedures, triggers, user-defined functions, and CHECK constraints  \n> - DB2 table DDL / physical design and referential-integrity (foreign-key) rules  \n> - IMS DBD physical design (segment hierarchy, pointers, secondary indexing) and PSB SENSEG /  \n>   PROCOPT internal semantics\n\n---\n\n# PART 5: THE MACHINE BRIDGE (MANDATORY)\n\n```json\n{\n  \"PAUT-DBDNAME\": \"pautDbdName\",\n  \"PAUT-SEG-LEVEL\": \"pautSegLevel\",\n  \"PAUT-PCB-STATUS\": \"pautPcbStatus\",\n  \"PAUT-PCB-PROCOPT\": \"pautPcbProcopt\",\n  \"PAUT-SEG-NAME\": \"pautSegName\",\n  \"PAUT-KEYFB-NAME\": \"pautKeyfbName\",\n  \"PAUT-NUM-SENSEGS\": \"pautNumSensSegs\",\n  \"PAUT-KEYFB\": \"pautKeyfb\",\n  \"PADFL-DBDNAME\": \"padflDbdName\",\n  \"PADFL-SEG-LEVEL\": \"padflSegLevel\",\n  \"PADFL-PCB-STATUS\": \"padflPcbStatus\",\n  \"PADFL-PCB-PROCOPT\": \"padflPcbProcopt\",\n  \"PADFL-SEG-NAME\": \"padflSegName\",\n  \"PADFL-KEYFB-NAME\": \"padflKeyfbName\",\n  \"PADFL-NUM-SENSEGS\": \"padflNumSensSegs\",\n  \"PADFL-KEYFB\": \"padflKeyfb\"\n}\n```\n\n[NAMING_MAP]\n```json\n{\n  \"PADFL-DBDNAME\": \"dbdName\",\n  \"PADFL-SEG-LEVEL\": \"segmentLevel\",\n  \"PADFL-PCB-STATUS\": \"statusCode\",\n  \"PADFL-PCB-PROCOPT\": \"processingOption\",\n  \"PADFL-SEG-NAME\": \"segmentName\",\n  \"PADFL-KEYFB-NAME\": \"keyFeedbackLength\",\n  \"PADFL-NUM-SENSEGS\": \"numSensitiveSegments\",\n  \"PADFL-KEYFB\": \"keyFeedbackArea\",\n  \"PAUT-DBDNAME\": \"dbdName\",\n  \"PAUT-SEG-LEVEL\": \"segmentLevel\",\n  \"PAUT-PCB-STATUS\": \"statusCode\",\n  \"PAUT-PCB-PROCOPT\": \"processingOption\",\n  \"PAUT-SEG-NAME\": \"segmentName\",\n  \"PAUT-KEYFB-NAME\": \"keyFeedbackLength\",\n  \"PAUT-NUM-SENSEGS\": \"numSensitiveSegments\",\n  \"PAUT-KEYFB\": \"keyFeedbackArea\"\n}\n```\n"
+        },
+        {
+          "module_id": "MOD-REFERENCE-DATA-MANAGEMEN",
+          "feature_unit_id": "SYS-DEAD-01",
+          "filename": "1_APISpec_pasflpcb.md",
+          "content": "# PRE-FLIGHT INVENTORY (MANDATORY GATE)\n* **Artifacts Received:** [\"pasflpcb\"]\n* **Primary Anchor:** pasflpcb\n\n---\n\n# TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)\n\n## 1.1 Identity Header\n* **MFU ID:** SYS-DEAD-01 | **Name:** MOD-REFERENCE-DATA-MANAGEMEN - Potential Dead Code (Orphans) (1 items) | **Track:** Mixed-Track | **PIC:** Lead Modernization Architect\n\n## 1.2 Legacy Source References\n| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |\n| :--- | :--- | :--- | :--- |\n| pasflpcb | data_provider | PASFLPCB.CPY | isolated |\n\n## 1.3 High-Risk Warning Box (Confidence < 90%)\n**ORPHAN ARTIFACT:** This COPY book is flagged as an orphan—it has no known caller or downstream consumer in the current inventory. Without linkage to a PROCEDURE DIVISION, its exact runtime semantics are inferred from IMS documentation.  \n- **Data structure risk:** No active references; all business meaning is deduced from standard IMS PCB conventions.  \n- **Packed-decimal/computational risk:** `COMP` fields (`PASFL-KEYFB-NAME`, `PASFL-NUM-SENSEGS`, `FILLER`) are binary halfwords (2 bytes). Conversion to modern signed integer must preserve the sign and two’s-complement representation.  \n- **No dynamic size:** No `OCCURS DEPENDING ON`; mapping is straightforward.\n\n## 1.4 Executive Forensic Summary (Requirement Base)\n1. **Business Mission:** Defines a standard IMS Program Communication Block (PCB) layout. The PCB is used by COBOL programs to describe the DL/I segment hierarchy, status, and key feedback area for IMS database access. This particular PCB likely belongs to a Reference Data Management subsystem, but it is orphaned and no longer actively consumed.  \n2. **Contract Style:** Shared COPY Book DTO — a memory layout that would have been included in a LINKAGE SECTION or WORKING-STORAGE of a COBOL program performing IMS calls.  \n3. **Data Integrity Requirement:** The `FILLER` field (a binary halfword) is likely reserved for IMS internal use or alignment; it must be preserved as an opaque placeholder in any modern mapping. All character fields are fixed-length and must be validated for trailing spaces.\n\n---\n\n# TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)\n\n## 2.1 API Endpoint Strategy\n* **Modern Endpoint Route:** `/api/v1/mod-reference-data-managemen/sys-dead-01`\n* **Data Cardinality:** Single Record (a PCB descriptor for one segment type)\n\n## 2.2 Data Retrieval (GET) Contract\n**Request Parameters (Input)**\n| Parameter Name | Req? | Data Type | Source Column / Context | Business Meaning (IELTS 5.5-6) | Trace ID |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| dbdName | No | String(8) | PASFL-DBDNAME | Filter by IMS Database Description name. | TRCE-IO-pasflpcb-L2 |\n\n**Response Body (Output Payload)**\n| JSON Field Name | Legacy Source Column | PIC Clause | Data Type | Business Meaning (IELTS 5.5-6) | Trace ID |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| dbdName | PASFL-DBDNAME | PIC X(08) | String(8) | Name of the IMS database this PCB is connected to. | TRCE-IO-pasflpcb-L2 |\n| segmentLevel | PASFL-SEG-LEVEL | PIC X(02) | String(2) | Hierarchical level number of the segment within the IMS database. | TRCE-IO-pasflpcb-L3 |\n| pcbStatus | PASFL-PCB-STATUS | PIC X(02) | String(2) | Return code status from the last DL/I call (e.g., “  ” for good). | TRCE-IO-pasflpcb-L4 |\n| pcbProcessingOptions | PASFL-PCB-PROCOPT | PIC X(04) | String(4) | DL/I processing option string (e.g., “G  ”, “GOTD”) indicating intended access mode. | TRCE-IO-pasflpcb-L5 |\n| _padding_01 | FILLER | PIC S9(05) COMP | Short (2 bytes) | Reserved binary field for IMS alignment; no business value. | TRCE-IO-pasflpcb-L6 |\n| segmentName | PASFL-SEG-NAME | PIC X(08) | String(8) | Name of the database segment this PCB accesses. | TRCE-IO-pasflpcb-L7 |\n| keyFeedbackAreaName | PASFL-KEYFB-NAME | PIC S9(05) COMP | Short (2 bytes) | Length of the key feedback area in bytes (static definition). | TRCE-IO-pasflpcb-L8 |\n| numSensitiveSegments | PASFL-NUM-SENSEGS | PIC S9(05) COMP | Short (2 bytes) | Number of sensitive segments defined for this PCB (security). | TRCE-IO-pasflpcb-L9 |\n| keyFeedback | PASFL-KEYFB | PIC X(100) | String(100) | Key feedback area: contains the key of the last segment retrieved or inserted. | TRCE-IO-pasflpcb-L10 |\n\n## 2.3 Transactional (POST/PUT) Contract\n*No transactional operations are defined for this isolated COPY book; it is a read-only control structure descriptor.*\n\n## 2.4 Response & Error Mapping\n| HTTP Code | Meaning | Modern Action (Global English) |\n| :--- | :--- | :--- |\n| 200 OK | PCB descriptor found (DL/I status = “  ”) | Return the PCB data payload. |\n| 404 Not Found | DBD or segment not defined (analogous to DL/I status “AI”) | Return error: PCB not configured. |\n| 500 Internal Server Error | IMS system error (DL/I status “xx” with xx non-blank) | Log DL/I status and return generic error. |\n\n---\n\n# TIER 3: THE FUNCTIONAL BLUEPRINT (The Persistence & Logic “How”)\n\n## 3.1 Transaction Identity\n* **Logic Source:** Shared COPY book; no concrete program logic attached.  \n* **Authority:** No commit authority exists—this is a passive data structure with no embedded `COMMIT` or `SYNCPOINT` call.\n\n## 3.2 Business Data Rules\nNo `WHERE` clauses or filters are present in this artifact. The field meanings are derived from IMS standard usage; no procedural validation checks exist.\n\n**[VALIDATION CROSS-POPULATION MANDATE]:** None applicable. No PROCEDURE DIVISION or `IF` checks reference this COPY book.\n\n## 3.3 Persistence DNA\n| Property | Value (Literal) | Requirement for Modern Implementation |\n| :--- | :--- | :--- |\n| **Locking Policy** | N/A (IMS PCB is a view, not a lockable record) | No locking required. |\n| **SQLCODE Check** | N/A (no SQL) | Map to IMS status codes if rehosted on IMS. |\n| **COMMIT Frequency** | N/A | Not applicable. |\n| **Null Handling** | None; all fields are fixed-length. | Pad or trim spaces as per character semantics. |\n| **REDEFINES Type** | None | Not applicable. |\n\n## 3.4 Infrastructure & External Integrations\n* **External Triggers:** This COPY book would be used by a COBOL program making `CALL 'CBLTDLI'` (IMS DL/I interface). No modern equivalent is inferred from the isolated artifact.  \n* **Legacy Orphan Artifacts:** The entire artifact is orphan. No transformation is mandated unless a future analysis identifies a live consumer.\n\n## 3.5 Server-Side Authorization & Access Control\nNo authorization rules exist in the COPY book. The `PASFL-NUM-SENSEGS` value is a count of “sensitive” segments, which could imply row‑level security in IMS, but no gates or checks are defined here.\n\n## 3.6 Authorization Rules Contract\n| Trace ID | Legacy Rule (Literal) | Target Modern Claim/Role | Operation Gated | Business Meaning |\n| :--- | :--- | :--- | :--- | :--- |\n| None | | | | |\n\n## 3.7 Security & Session Context\nNo identity or session variables appear.\n\n---\n\n# TIER 4: COBOL DATA CONTRACT ADDENDUM\n\n## L.1 COPY Book Field Table\n**Elementary item count: 9** (all `05`‑level fields)\n\n| Level | Field Name (COBOL) | PIC Clause | Implied Decimal? | Length (bytes) | Modern DTO Field | Modern Type | Business Meaning |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| 01 | PASFLPCB | group | N | 134 | pasflPcb | Object | IMS Program Communication Block descriptor. |\n| 05 | PASFL-DBDNAME | PIC X(08) | N | 8 | dbdName | String(8) | IMS Database Description name. |\n| 05 | PASFL-SEG-LEVEL | PIC X(02) | N | 2 | segmentLevel | String(2) | Hierarchy level number of the segment. |\n| 05 | PASFL-PCB-STATUS | PIC X(02) | N | 2 | pcbStatus | String(2) | DL/I call status code. |\n| 05 | PASFL-PCB-PROCOPT | PIC X(04) | N | 4 | pcbProcessingOptions | String(4) | DL/I processing options (e.g., “G  ”). |\n| 05 | FILLER | PIC S9(05) COMP | N (binary) | 2 | _padding_01 | Short (2 bytes) | IMS alignment/reserved; no business value. |\n| 05 | PASFL-SEG-NAME | PIC X(08) | N | 8 | segmentName | String(8) | Name of the segment being accessed. |\n| 05 | PASFL-KEYFB-NAME | PIC S9(05) COMP | N (binary) | 2 | keyFeedbackAreaLen | Short (2 bytes) | Length of the key feedback area (bytes). |\n| 05 | PASFL-NUM-SENSEGS | PIC S9(05) COMP | N (binary) | 2 | numSensitiveSegments | Short (2 bytes) | Count of sensitive segments defined. |\n| 05 | PASFL-KEYFB | PIC X(100) | N | 100 | keyFeedback | String(100) | Key feedback area – last key used by DL/I. |\n\n## L.2 88-Level Condition Names → Enum Mapping\nNo 88-level items are present in this COPY book.\n\n## L.3 REDEFINES → Discriminated Type Mapping\nNo `REDEFINES` clauses exist.\n\n## L.4 OCCURS DEPENDING ON → Dynamic Array\nNo `OCCURS` or `OCCURS DEPENDING ON` clauses exist.\n\n## L.5 LINKAGE SECTION — Subprogram Call Interface\nThis COPY book is not a LINKAGE SECTION; it is a stand‑alone data layout.\n\n## L.6 DB2 Table Binding (EXEC SQL SELECT INTO / DCLGEN)\nNo DB2 host‑variable or DCLGEN references are present.\n\n## L.7 DB-Tier Scope Boundary (MANDATORY DISCLAIMER — REPRODUCE VERBATIM)\n> **DB-Tier Scope Boundary — Known Gap for Separate Validation**\n> This document describes application-tier DB access only. The following are explicitly OUT OF SCOPE\n> and must be validated separately against the database catalog / DDL:\n> - DB2 stored procedures, triggers, user-defined functions, and CHECK constraints\n> - DB2 table DDL / physical design and referential-integrity (foreign-key) rules\n> - IMS DBD physical design (segment hierarchy, pointers, secondary indexing) and PSB SENSEG /\n>   PROCOPT internal semantics\n\n---\n\n# PART 5: THE MACHINE BRIDGE (MANDATORY)\n\n##\n\n[NAMING_MAP]\n```json\n{\n  \"PASFL-DBDNAME\": \"dbdName\",\n  \"PASFL-SEG-LEVEL\": \"segmentLevel\",\n  \"PASFL-PCB-STATUS\": \"pcbStatus\",\n  \"PASFL-PCB-PROCOPT\": \"pcbProcessingOptions\",\n  \"FILLER\": \"_padding_01\",\n  \"PASFL-SEG-NAME\": \"segmentName\",\n  \"PASFL-KEYFB-NAME\": \"keyFeedbackAreaLen\",\n  \"PASFL-NUM-SENSEGS\": \"numSensitiveSegments\",\n  \"PASFL-KEYFB\": \"keyFeedback\"\n}\n```\n"
+        }
+      ],
+      "config_specs": [
+        {
+          "module_id": "MOD-REFERENCE-DATA-MANAGEMEN",
+          "feature_unit_id": "SYS-DATA-01",
+          "filename": "config_naming_map.json",
+          "content": {
+            "mfu_id": "SYS-DATA-01",
+            "mfu_name": "MOD-REFERENCE-DATA-MANAGEMEN - Ungrouped Data Objects (Orphans) (2 items)",
+            "module": "MOD-REFERENCE-DATA-MANAGEMEN",
+            "execution_track": "Mixed-Track",
+            "target_stack": {
+              "frontend": "React/TypeScript",
+              "backend": "Java Spring Boot",
+              "infrastructure": "AWS Cloud",
+              "architecture": "Microservices",
+              "database": "PostgreSQL"
+            },
+            "source_artifacts": [
+              "padflpcb",
+              "pautbpcb"
+            ],
+            "resolved_dependencies": [],
+            "traceability_chain": [
+              "padflpcb"
+            ],
+            "risk_flags": [
+              "orphan_bucket"
+            ],
+            "naming_map": {
+              "PADFL-DBDNAME": "dbdName",
+              "PADFL-SEG-LEVEL": "segmentLevel",
+              "PADFL-PCB-STATUS": "statusCode",
+              "PADFL-PCB-PROCOPT": "processingOption",
+              "PADFL-SEG-NAME": "segmentName",
+              "PADFL-KEYFB-NAME": "keyFeedbackLength",
+              "PADFL-NUM-SENSEGS": "numSensitiveSegments",
+              "PADFL-KEYFB": "keyFeedbackArea",
+              "PAUT-DBDNAME": "dbdName",
+              "PAUT-SEG-LEVEL": "segmentLevel",
+              "PAUT-PCB-STATUS": "statusCode",
+              "PAUT-PCB-PROCOPT": "processingOption",
+              "PAUT-SEG-NAME": "segmentName",
+              "PAUT-KEYFB-NAME": "keyFeedbackLength",
+              "PAUT-NUM-SENSEGS": "numSensitiveSegments",
+              "PAUT-KEYFB": "keyFeedbackArea"
+            },
+            "generated_at": "2026-07-08 11:14:45"
+          }
+        },
+        {
+          "module_id": "MOD-REFERENCE-DATA-MANAGEMEN",
+          "feature_unit_id": "SYS-DEAD-01",
+          "filename": "config_naming_map.json",
+          "content": {
+            "mfu_id": "SYS-DEAD-01",
+            "mfu_name": "MOD-REFERENCE-DATA-MANAGEMEN - Potential Dead Code (Orphans) (1 items)",
+            "module": "MOD-REFERENCE-DATA-MANAGEMEN",
+            "execution_track": "Mixed-Track",
+            "target_stack": {
+              "frontend": "React/TypeScript",
+              "backend": "Java Spring Boot",
+              "infrastructure": "AWS Cloud",
+              "architecture": "Microservices",
+              "database": "PostgreSQL"
+            },
+            "source_artifacts": [
+              "pasflpcb"
+            ],
+            "resolved_dependencies": [],
+            "traceability_chain": [
+              "pasflpcb"
+            ],
+            "risk_flags": [
+              "orphan_bucket"
+            ],
+            "naming_map": {
+              "PASFL-DBDNAME": "dbdName",
+              "PASFL-SEG-LEVEL": "segmentLevel",
+              "PASFL-PCB-STATUS": "pcbStatus",
+              "PASFL-PCB-PROCOPT": "pcbProcessingOptions",
+              "FILLER": "_padding_01",
+              "PASFL-SEG-NAME": "segmentName",
+              "PASFL-KEYFB-NAME": "keyFeedbackAreaLen",
+              "PASFL-NUM-SENSEGS": "numSensitiveSegments",
+              "PASFL-KEYFB": "keyFeedback"
+            },
+            "generated_at": "2026-07-08 11:16:12"
+          }
+        }
+      ]
+    }
+  },
+  "feature_derivation": {
+    "module_id": "MOD-REFERENCE-DATA-MANAGEMEN",
+    "results": [
+      {
+        "schema_version": "5a.2",
+        "mfu_id": "SYS-DATA-01",
+        "mfu_seq": "901",
+        "module_id": "MOD-REFERENCE-DATA-MANAGEMEN",
+        "module_name": "Database Segment Configuration Management",
+        "source_path": "projects\\sample_project\\modules\\MOD-REFERENCE-DATA-MANAGEMEN\\stage4_specs\\SYS-DATA-01\\1_APISpec_padflpcb.md",
+        "technology_tag": "COBOL",
+        "module_business_name": "Reference Data Management",
+        "module_business_description": "Manages the definition and status of hierarchical database segments, tracking processing options, key feedback areas, and sensitive segment counts to support database operations.",
+        "l1_source": {
+          "id": "SRS::SYS-DATA-01::APIContracts",
+          "document_type": "SRS_APIContracts",
+          "path": "projects\\sample_project\\modules\\MOD-REFERENCE-DATA-MANAGEMEN\\stage4_specs\\SYS-DATA-01\\1_APISpec_padflpcb.md",
+          "mfu_id": "SYS-DATA-01",
+          "screen_id": "REFERENCE-DATA-MANAGEMEN_SCREEN_912"
+        },
+        "features": [
+          {
+            "id": "REFERENCE-DATA-MANAGEMEN-901-F1",
+            "title": "Reference Data Orphan Record Management and Retrieval",
+            "description": "Provides REST API operations to manage orphaned reference data records, including create, read, update, and delete, for synchronizing legacy COBOL batch data with modern systems.",
+            "source": "SRS APIContracts 1_APISpec_padflpcb.md — API endpoint definitions for orphan data CRUD",
+            "category": "Functional",
+            "functions": [
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-901-F1-FN1",
+                "label": "Retrieve All Orphan Reference Data Records (REFERENCE-DATA-MANAGEMEN-901-F1-FN1)",
+                "l2_source_ref": "SRS::SYS-DATA-01::API::GET_api_v1_reference-data_orphans",
+                "description": "Enables users to fetch a complete list of all orphan reference data records. This retrieval is triggered via a REST API call, providing an overview of orphan records for review or downstream processing."
+              },
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-901-F1-FN2",
+                "label": "Create Orphan Reference Data Record (REFERENCE-DATA-MANAGEMEN-901-F1-FN2)",
+                "l2_source_ref": "SRS::SYS-DATA-01::API::POST_api_v1_reference-data_orphans",
+                "description": "Allows users to add a new orphan record to the reference data store. This capability is invoked through a REST API, ensuring that essential reference data can be captured when a linked record is missing."
+              },
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-901-F1-FN3",
+                "label": "Update Orphan Reference Data Record by ID (REFERENCE-DATA-MANAGEMEN-901-F1-FN3)",
+                "l2_source_ref": "SRS::SYS-DATA-01::API::PUT_api_v1_reference-data_orphans_id",
+                "description": "Permits users to modify an existing orphan reference data record identified by its unique ID. The operation is triggered via a REST API call, enabling correction or enrichment of orphan data."
+              },
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-901-F1-FN4",
+                "label": "Delete Orphan Reference Data Record by ID (REFERENCE-DATA-MANAGEMEN-901-F1-FN4)",
+                "l2_source_ref": "SRS::SYS-DATA-01::API::DELETE_api_v1_reference-data_orphans_id",
+                "description": "Grants users the ability to remove a specific orphan reference data record using its ID. This action is performed through a REST API, helping to maintain data hygiene by eliminating stale orphan entries."
+              }
+            ],
+            "business_context": {
+              "current_state": "A COBOL batch program (padflpcb) exposed as REST API endpoints for managing orphan reference data records, supporting creation, retrieval, update, and deletion operations.",
+              "target_state": "A modern microservice (<OrphanReferenceDataService />) providing RESTful CRUD operations at endpoints GET /api/v1/reference-data/orphans, POST, PUT, DELETE, with transactional integrity and proper error handling."
+            },
+            "success_criteria": [
+              "All CRUD operations must complete within 500ms under normal concurrent load."
+            ],
+            "l2_sources": [
+              "SRS::SYS-DATA-01::API::GET_api_v1_reference-data_orphans",
+              "SRS::SYS-DATA-01::API::POST_api_v1_reference-data_orphans",
+              "SRS::SYS-DATA-01::API::PUT_api_v1_reference-data_orphans_id",
+              "SRS::SYS-DATA-01::API::DELETE_api_v1_reference-data_orphans_id"
+            ],
+            "bounding_box": {
+              "id": "BBOX::REFERENCE_DATA_MANAGEMEN_PADFLPCB_901::FULL_SCREEN",
+              "zone_id": "FULL_SCREEN",
+              "zone_label_en": "Full Screen — Orphan Reference Data API",
+              "zone_label_jp": "Full Screen — Orphan Reference Data API",
+              "screen_position": "full",
+              "controls": [],
+              "s3_row_refs": [],
+              "highlight_color": "#8B5CF6"
+            },
+            "is_infrastructure": false,
+            "srs_section_scope": [
+              "API endpoints: GET /api/v1/reference-data/orphans — retrieve all orphan records",
+              "API endpoints: POST /api/v1/reference-data/orphans — create a new orphan record",
+              "API endpoints: PUT /api/v1/reference-data/orphans/{id} — update an orphan record by ID",
+              "API endpoints: DELETE /api/v1/reference-data/orphans/{id} — delete an orphan record by ID",
+              "HTTP status codes: 200, 201, 400, 404, 500"
+            ],
+            "user_stories": [
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S1",
+                "title": "Retrieve All Orphan Reference Data Records",
+                "as_a": "Data Management Operator",
+                "i_want_to": "retrieve a complete list of all orphan reference data records",
+                "so_that": "I can review and reconcile them with the master data",
+                "story_points": 2,
+                "acceptance_criteria": [
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S1-AC1",
+                    "path_type": "Happy Path",
+                    "given": "orphan records exist in the reference data store",
+                    "when": "the operator submits the orphan data retrieval batch job",
+                    "then": "the job completes with RETURN-CODE 0 and outputs a full list of orphan records with status code spaces",
+                    "l2_source_ref": "SRS::SYS-DATA-01::API::GET_api_v1_reference-data_orphans"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S1-AC2",
+                    "path_type": "Negative Path",
+                    "given": "the IMS database is unavailable",
+                    "when": "the operator submits the orphan data retrieval batch job",
+                    "then": "the job abends with a non-zero return code and logs an error indicating the IMS access failure",
+                    "l2_source_ref": "GAP::SYS-DATA-01::IMS database unavailability during orphan retrieval"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S1-AC3",
+                    "path_type": "Edge Case",
+                    "given": "the PADFL database contains no orphan records",
+                    "when": "the operator submits the orphan data retrieval batch job",
+                    "then": "the job completes with RETURN-CODE 0 and outputs an empty list, with a PCB status of 'GE' (segment not found)",
+                    "l2_source_ref": "GAP::SYS-DATA-01::Empty orphan record set handling"
+                  }
+                ],
+                "l2_sources": [
+                  "SRS::SYS-DATA-01::API::GET_api_v1_reference-data_orphans"
+                ],
+                "technical_notes": "Legacy artifacts: PADFLPCB and PAUTBPCB IMS PCB masks. Modern service maps PCB status codes; 'GE' returns empty result. Performance must meet feature SLA of 500ms under concurrent load.",
+                "migration_hint": "Implement as a synchronous REST GET endpoint that translates batch job request into an IMS PCB read via an adapter; map status codes accordingly.",
+                "non_functional_requirements": [
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S1-NFR1",
+                    "category": "Performance",
+                    "requirement": "All CRUD operations must complete within 500ms under normal concurrent load.",
+                    "derived_from": "implied_gap"
+                  }
+                ],
+                "srs_evidence": [
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::GET_api_v1_reference-data_orphans",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.2 Data Retrieval (GET) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.2 Data Retrieval (GET) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "GET /api/v1/reference-data/orphans",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 39,
+                    "evidence_role": "data_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S1-AC1"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DATA-01::IMS database unavailability during orphan retrieval",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DATA-01::IMS database unavailability during orphan retrieval",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S1-AC2"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DATA-01::Empty orphan record set handling",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DATA-01::Empty orphan record set handling",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S1-AC3"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::POST_api_v1_reference-data_orphans",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference-data/orphans",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 60,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::PUT_api_v1_reference-data_orphans_id",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "PUT /api/v1/reference-data/orphans/id",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 60,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::DELETE_api_v1_reference-data_orphans_id",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "API Contracts",
+                    "section_path": [],
+                    "highlight_type": "section",
+                    "target_string": "DELETE_api_v1_reference-data_orphans_id",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "fuzzy",
+                    "line_number": 0,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  }
+                ]
+              },
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S2",
+                "title": "Create Orphan Reference Data Record",
+                "as_a": "Data Management Operator",
+                "i_want_to": "add a new orphan record to the reference data store",
+                "so_that": "missing records can be captured when a linked master record is not yet available",
+                "story_points": 2,
+                "acceptance_criteria": [
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S2-AC1",
+                    "path_type": "Happy Path",
+                    "given": "the orphan record data is valid and complete",
+                    "when": "the operator submits the orphan data creation batch job",
+                    "then": "the job completes with RETURN-CODE 0, the orphan record is persisted, and the PCB status is spaces",
+                    "l2_source_ref": "SRS::SYS-DATA-01::API::POST_api_v1_reference-data_orphans"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S2-AC2",
+                    "path_type": "Negative Path",
+                    "given": "the input record contains invalid or missing mandatory fields",
+                    "when": "the operator submits the orphan data creation batch job",
+                    "then": "the job abends with a non-zero return code, does not create the record, and writes an error message",
+                    "l2_source_ref": "GAP::SYS-DATA-01::Invalid input validation during orphan creation"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S2-AC3",
+                    "path_type": "Edge Case",
+                    "given": "a record with the same unique identifier already exists",
+                    "when": "the operator submits the orphan data creation batch job",
+                    "then": "the job completes with RETURN-CODE 8, the duplicate is rejected, and the existing record remains unchanged",
+                    "l2_source_ref": "GAP::SYS-DATA-01::Duplicate key handling on orphan creation"
+                  }
+                ],
+                "l2_sources": [
+                  "SRS::SYS-DATA-01::API::POST_api_v1_reference-data_orphans"
+                ],
+                "technical_notes": "Legacy artifacts: PADFLPCB and PAUTBPCB. Modern adapter must validate input payload and map to appropriate IMS ISRT call. Status code 'II' indicates invalid call (e.g., bad segment name).",
+                "migration_hint": "Wrap the batch creation as a REST POST endpoint; behind the scenes issue an IMS insert through the PCB mask abstraction.",
+                "non_functional_requirements": [
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S2-NFR1",
+                    "category": "Performance",
+                    "requirement": "All CRUD operations must complete within 500ms under normal concurrent load.",
+                    "derived_from": "implied_gap"
+                  }
+                ],
+                "srs_evidence": [
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::POST_api_v1_reference-data_orphans",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference-data/orphans",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 60,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S2-AC1"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DATA-01::Invalid input validation during orphan creation",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DATA-01::Invalid input validation during orphan creation",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S2-AC2"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DATA-01::Duplicate key handling on orphan creation",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DATA-01::Duplicate key handling on orphan creation",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S2-AC3"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::GET_api_v1_reference-data_orphans",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.2 Data Retrieval (GET) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.2 Data Retrieval (GET) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "GET /api/v1/reference-data/orphans",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 39,
+                    "evidence_role": "data_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::PUT_api_v1_reference-data_orphans_id",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "PUT /api/v1/reference-data/orphans/id",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 60,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::DELETE_api_v1_reference-data_orphans_id",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "API Contracts",
+                    "section_path": [],
+                    "highlight_type": "section",
+                    "target_string": "DELETE_api_v1_reference-data_orphans_id",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "fuzzy",
+                    "line_number": 0,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  }
+                ]
+              },
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S3",
+                "title": "Update Orphan Reference Data Record by ID",
+                "as_a": "Data Management Operator",
+                "i_want_to": "modify an existing orphan reference data record identified by its unique ID",
+                "so_that": "I can correct or enrich orphan data as required",
+                "story_points": 2,
+                "acceptance_criteria": [
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S3-AC1",
+                    "path_type": "Happy Path",
+                    "given": "the orphan record with the specified ID exists and the update data is valid",
+                    "when": "the operator submits the orphan data update batch job for that ID",
+                    "then": "the job completes with RETURN-CODE 0, the record is updated, and PCB status is spaces",
+                    "l2_source_ref": "SRS::SYS-DATA-01::API::PUT_api_v1_reference-data_orphans_id"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S3-AC2",
+                    "path_type": "Negative Path",
+                    "given": "the orphan record with the specified ID does not exist",
+                    "when": "the operator submits the orphan data update batch job",
+                    "then": "the job completes with RETURN-CODE 8 and logs a 'segment not found' (GE) status",
+                    "l2_source_ref": "GAP::SYS-DATA-01::Orphan record not found during update"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S3-AC3",
+                    "path_type": "Edge Case",
+                    "given": "an update attempts to change a protected field such as the orphan ID",
+                    "when": "the operator submits the orphan data update batch job",
+                    "then": "the job abends with a non-zero return code, the record is not modified, and an error is reported",
+                    "l2_source_ref": "GAP::SYS-DATA-01::Immutable field update attempt on orphan record"
+                  }
+                ],
+                "l2_sources": [
+                  "SRS::SYS-DATA-01::API::PUT_api_v1_reference-data_orphans_id"
+                ],
+                "technical_notes": "Legacy IMS PCB status codes guide error handling; 'GE' = not found, 'II' = invalid call. The update is implemented via a DL/I REPL call; any status other than spaces aborts the transaction.",
+                "migration_hint": "Expose as a REST PUT endpoint; internally perform a DL/I REPL using the provided PCB mask and map errors to standard HTTP responses (e.g., 404 for segment not found).",
+                "non_functional_requirements": [
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S3-NFR1",
+                    "category": "Performance",
+                    "requirement": "All CRUD operations must complete within 500ms under normal concurrent load.",
+                    "derived_from": "implied_gap"
+                  }
+                ],
+                "srs_evidence": [
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::PUT_api_v1_reference-data_orphans_id",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "PUT /api/v1/reference-data/orphans/id",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 60,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S3-AC1"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DATA-01::Orphan record not found during update",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DATA-01::Orphan record not found during update",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S3-AC2"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DATA-01::Immutable field update attempt on orphan record",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DATA-01::Immutable field update attempt on orphan record",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S3-AC3"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::GET_api_v1_reference-data_orphans",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.2 Data Retrieval (GET) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.2 Data Retrieval (GET) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "GET /api/v1/reference-data/orphans",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 39,
+                    "evidence_role": "data_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::POST_api_v1_reference-data_orphans",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference-data/orphans",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 60,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::DELETE_api_v1_reference-data_orphans_id",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "API Contracts",
+                    "section_path": [],
+                    "highlight_type": "section",
+                    "target_string": "DELETE_api_v1_reference-data_orphans_id",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "fuzzy",
+                    "line_number": 0,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  }
+                ]
+              },
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S4",
+                "title": "Delete Orphan Reference Data Record by ID",
+                "as_a": "Data Management Operator",
+                "i_want_to": "remove a specific orphan reference data record using its ID",
+                "so_that": "stale or erroneous orphan entries can be cleaned up to maintain data hygiene",
+                "story_points": 2,
+                "acceptance_criteria": [
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S4-AC1",
+                    "path_type": "Happy Path",
+                    "given": "the orphan record with the specified ID exists",
+                    "when": "the operator submits the orphan data deletion batch job",
+                    "then": "the job completes with RETURN-CODE 0, the record is permanently removed, and PCB status is spaces",
+                    "l2_source_ref": "SRS::SYS-DATA-01::API::DELETE_api_v1_reference-data_orphans_id"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S4-AC2",
+                    "path_type": "Negative Path",
+                    "given": "the orphan record with the specified ID does not exist",
+                    "when": "the operator submits the orphan data deletion batch job",
+                    "then": "the job completes with RETURN-CODE 8 and logs a 'segment not found' (GE) status",
+                    "l2_source_ref": "GAP::SYS-DATA-01::Deletion of non-existent orphan record"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S4-AC3",
+                    "path_type": "Edge Case",
+                    "given": "the IMS database returns a status code other than spaces or GE (e.g., 'AM') during the delete",
+                    "when": "the operator submits the orphan data deletion batch job",
+                    "then": "the job abends with a non-zero return code, the record is not deleted, and the error is logged",
+                    "l2_source_ref": "GAP::SYS-DATA-01::Unexpected IMS status code during orphan deletion"
+                  }
+                ],
+                "l2_sources": [
+                  "SRS::SYS-DATA-01::API::DELETE_api_v1_reference-data_orphans_id"
+                ],
+                "technical_notes": "Legacy DELETE operation maps to a DL/I DLET call. The PCB mask's status code field is inspected after the call; any non-space value triggers an error. Artifacts: PADFLPCB, PAUTBPCB.",
+                "migration_hint": "Implement as a REST DELETE endpoint; the service adapter must issue a DL/I DLET using the appropriate PCB and handle IMS status codes gracefully.",
+                "non_functional_requirements": [
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-901-F1-S4-NFR1",
+                    "category": "Performance",
+                    "requirement": "All CRUD operations must complete within 500ms under normal concurrent load.",
+                    "derived_from": "implied_gap"
+                  }
+                ],
+                "srs_evidence": [
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::DELETE_api_v1_reference-data_orphans_id",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "API Contracts",
+                    "section_path": [],
+                    "highlight_type": "section",
+                    "target_string": "DELETE_api_v1_reference-data_orphans_id",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "fuzzy",
+                    "line_number": 0,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S4-AC1"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DATA-01::Deletion of non-existent orphan record",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DATA-01::Deletion of non-existent orphan record",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S4-AC2"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DATA-01::Unexpected IMS status code during orphan deletion",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DATA-01::Unexpected IMS status code during orphan deletion",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-901-F1-S4-AC3"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::GET_api_v1_reference-data_orphans",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.2 Data Retrieval (GET) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.2 Data Retrieval (GET) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "GET /api/v1/reference-data/orphans",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 39,
+                    "evidence_role": "data_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::POST_api_v1_reference-data_orphans",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference-data/orphans",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 60,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DATA-01::API::PUT_api_v1_reference-data_orphans_id",
+                    "file_name": "1_APISpec_padflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "PUT /api/v1/reference-data/orphans/id",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 60,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "generation_metadata": {
+          "generator_model": "deepseek/deepseek-v4-pro",
+          "iteration_count": 3,
+          "final_status": "PASS",
+          "generated_at": "2026-07-08T11:49:22.576737+00:00",
+          "correction_applied": true,
+          "review_guidance": {
+            "severity": "none",
+            "recommended_action": "NONE",
+            "approve_as_is_allowed": true,
+            "guideline": "Critic approved. No action required.",
+            "flagged_story_ids": []
+          }
+        }
+      },
+      {
+        "schema_version": "5a.2",
+        "mfu_id": "SYS-DEAD-01",
+        "mfu_seq": "910",
+        "module_id": "MOD-REFERENCE-DATA-MANAGEMEN",
+        "module_name": "Database Segment Configuration Management",
+        "source_path": "projects\\sample_project\\modules\\MOD-REFERENCE-DATA-MANAGEMEN\\stage4_specs\\SYS-DEAD-01\\1_APISpec_pasflpcb.md",
+        "technology_tag": "COBOL",
+        "l1_source": {
+          "id": "SRS::SYS-DEAD-01::APIContracts",
+          "document_type": "SRS_APIContracts",
+          "path": "projects\\sample_project\\modules\\MOD-REFERENCE-DATA-MANAGEMEN\\stage4_specs\\SYS-DEAD-01\\1_APISpec_pasflpcb.md",
+          "mfu_id": "SYS-DEAD-01",
+          "screen_id": "REFERENCE-DATA-MANAGEMEN_SCREEN_910"
+        },
+        "features": [
+          {
+            "id": "REFERENCE-DATA-MANAGEMEN-910-F1",
+            "title": "PASGRP and Small Machines File Consistency Verification",
+            "description": "Compares the PASGRP reference data file against a file of small machine records, detecting discrepancies in record keys. Reads both files in sorted order, matches records, and writes mismatched or matched records to an output report file.",
+            "source": "SRS APIContracts — pasflpcb COBOL batch program (S.1 Program Overview, S.2 Procedure Division)",
+            "category": "Batch",
+            "functions": [
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-910-F1-FN1",
+                "label": "Set up data files for consistency verification (OpenFiles)",
+                "l2_source_ref": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_initialize",
+                "description": "The batch job opens the PASGRP file, the small machines file, and the output file to prepare for the comparison process. This initialisation step ensures all data sources are available before the match‑merge routine begins."
+              },
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-910-F1-FN2",
+                "label": "Run key‑based comparison and output mismatches (MatchMerge)",
+                "l2_source_ref": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_process",
+                "description": "Records are read from both input files and compared by key using a match‑merge algorithm. Any discrepancy identified is written to the output file, providing a clear report of data inconsistencies."
+              },
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-910-F1-FN3",
+                "label": "Finalise batch job and signal processing outcome (CloseFiles)",
+                "l2_source_ref": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_finalize",
+                "description": "All opened files are closed and the batch job terminates with a return code that reflects the processing status. This allows operators or downstream systems to quickly verify whether the consistency check succeeded."
+              }
+            ],
+            "business_context": {
+              "current_state": "A COBOL batch program (PASFLPCB) that reads the PASGRP file and a small machines file, compares records in sorted order using a match-merge algorithm, and writes inconsistencies to an output file. It is classified as potential dead code (orphaned).",
+              "target_state": "No direct modern equivalent currently required; the consistency check is considered obsolete and may be retired. If needed in the future, a scheduled data quality microservice (GET /api/v1/reference-data/validate) could compare records from a consolidated reference data store."
+            },
+            "success_criteria": [
+              "Batch job completes with RETURN-CODE 0 when all records are processed successfully; output file contains discrepancy records.",
+              "All file open operations succeed and files are closed cleanly even on abnormal termination."
+            ],
+            "l2_sources": [
+              "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_initialize",
+              "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_process",
+              "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_finalize"
+            ],
+            "bounding_box": {
+              "id": "BBOX::REFERENCE-DATA-MANAGEMEN_PASFLPCB_910::FULL_SCREEN",
+              "zone_id": "FULL_SCREEN",
+              "zone_label_en": "Batch Processing — PASGRP and Small Machines Comparison",
+              "zone_label_jp": "Batch Processing — PASGRP and Small Machines Comparison",
+              "screen_position": "full",
+              "controls": [],
+              "s3_row_refs": [],
+              "highlight_color": "#6366F1"
+            },
+            "is_infrastructure": false,
+            "srs_section_scope": [
+              "S.1 Overview: Program ID PASFLPCB, compares PASGRP file and small machines file",
+              "S.2 Program Structure: INFILE, OUTFILE, PASGRPFILE; Procedure Division OPEN → READ/COMPARE/WRITE → CLOSE"
+            ],
+            "condensation_note": "pasflpcb is an orphaned COBOL batch program (potential dead code). It has no user interface and performs a direct file-to-file comparison without database integration. Its business value is deprecated, and it is retained in the SRS as a dead-code candidate for retirement.",
+            "user_stories": [
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S2",
+                "title": "Initialize PASGRP and Small Machines File Comparison Job",
+                "as_a": "Batch Operator",
+                "i_want_to": "submit the PASGRP and small machines file comparison job",
+                "so_that": "the job opens the required data files and prepares for the match-merge process",
+                "story_points": 2,
+                "acceptance_criteria": [
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S2-AC1",
+                    "path_type": "Happy Path",
+                    "given": "the batch job for PASGRP and small machines comparison is defined in the job scheduler",
+                    "when": "the job is submitted to the scheduler",
+                    "then": "the PASGRP file, small machines file, and output file are opened successfully and the job step completes with condition code 0",
+                    "l2_source_ref": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_initialize"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S2-AC2",
+                    "path_type": "Negative Path",
+                    "given": "one of the input files (PASGRP or small machines) is missing or cannot be accessed",
+                    "when": "the job is submitted",
+                    "then": "the job abends with a non-zero return code and an error message is written to the system log",
+                    "l2_source_ref": "GAP::SYS-DEAD-01::FILE_OPEN_ERROR"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S2-AC3",
+                    "path_type": "Edge Case",
+                    "given": "the output file already exists and the JCL DISP is set to prevent overwrite",
+                    "when": "the job is submitted",
+                    "then": "the job detects the existing file conflict and terminates with a JCL error and a non-zero return code",
+                    "l2_source_ref": "GAP::SYS-DEAD-01::OUTPUT_FILE_CONFLICT"
+                  }
+                ],
+                "l2_sources": [
+                  "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_initialize"
+                ],
+                "technical_notes": "Corresponds to the OPEN logic in the COBOL program PASFLPCB. The batch job uses JCL DD statements to allocate the input files (PASGRP and small machines) and the output discrepancy file. File status checks are performed after each OPEN; failures cause an abnormal termination.",
+                "migration_hint": "In a modern environment, the file open step could be replaced with a cloud storage readiness check or a pre-validation hook in a scheduled containerized job.",
+                "non_functional_requirements": [],
+                "srs_evidence": [
+                  {
+                    "l2_id": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_initialize",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference/data/compare/pasgrp/smallmachines/initialize",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 55,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-910-F1-S2-AC1"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DEAD-01::FILE_OPEN_ERROR",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DEAD-01::FILE_OPEN_ERROR",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-910-F1-S2-AC2"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DEAD-01::OUTPUT_FILE_CONFLICT",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DEAD-01::OUTPUT_FILE_CONFLICT",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-910-F1-S2-AC3"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_process",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference/data/compare/pasgrp/smallmachines/process",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 55,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_finalize",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference/data/compare/pasgrp/smallmachines/finalize",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 55,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  }
+                ]
+              },
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S3",
+                "title": "Compare PASGRP and Small Machines Records and Report Discrepancies",
+                "as_a": "Batch Operator",
+                "i_want_to": "execute the key-based comparison of the PASGRP file and small machines file",
+                "so_that": "all record mismatches are identified and written to an output report file",
+                "story_points": 2,
+                "acceptance_criteria": [
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S3-AC1",
+                    "path_type": "Happy Path",
+                    "given": "the PASGRP file and small machines file are opened and sorted by key",
+                    "when": "the batch job reads and compares records from both files in key order",
+                    "then": "for each comparison, if a discrepancy is found, the mismatch record is written to the output file; the job completes with RETURN-CODE 0",
+                    "l2_source_ref": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_process"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S3-AC2",
+                    "path_type": "Negative Path",
+                    "given": "the output file volume becomes full during write",
+                    "when": "the job attempts to write a discrepancy record",
+                    "then": "the job abends with a disk-full error and a non-zero return code",
+                    "l2_source_ref": "GAP::SYS-DEAD-01::OUTPUT_FILE_FULL_ERROR"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S3-AC3",
+                    "path_type": "Edge Case",
+                    "given": "both files contain the same set of keys with no mismatches",
+                    "when": "the comparison run completes",
+                    "then": "the output file contains a summary record indicating zero discrepancies and the job returns RETURN-CODE 0",
+                    "l2_source_ref": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_process"
+                  }
+                ],
+                "l2_sources": [
+                  "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_process"
+                ],
+                "technical_notes": "Implements the match‑merge routine from the COBOL program PASFLPCB. It reads both input files sequentially, compares record keys, and writes discrepancy detail records to the output file. No database access is involved; it is a pure file‑to‑file comparison.",
+                "migration_hint": "Could be replaced by a data quality rule engine or a scheduled Spark job that joins reference data from two sources and logs mismatches.",
+                "non_functional_requirements": [],
+                "srs_evidence": [
+                  {
+                    "l2_id": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_process",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference/data/compare/pasgrp/smallmachines/process",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 55,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-910-F1-S3-AC1",
+                      "REFERENCE-DATA-MANAGEMEN-910-F1-S3-AC3"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DEAD-01::OUTPUT_FILE_FULL_ERROR",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DEAD-01::OUTPUT_FILE_FULL_ERROR",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-910-F1-S3-AC2"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_initialize",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference/data/compare/pasgrp/smallmachines/initialize",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 55,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_finalize",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference/data/compare/pasgrp/smallmachines/finalize",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 55,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  }
+                ]
+              },
+              {
+                "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S4",
+                "title": "Finalize PASGRP and Small Machines Comparison Job",
+                "as_a": "Batch Operator",
+                "i_want_to": "have the job clean up resources and signal the outcome of the consistency check",
+                "so_that": "downstream systems or operators can determine whether the comparison succeeded or failed",
+                "story_points": 2,
+                "acceptance_criteria": [
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S4-AC1",
+                    "path_type": "Happy Path",
+                    "given": "all records have been processed",
+                    "when": "the batch job reaches the end of both input files",
+                    "then": "all files are closed, the job returns a success return code (0), and a completion message is logged",
+                    "l2_source_ref": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_finalize"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S4-AC2",
+                    "path_type": "Negative Path",
+                    "given": "a file I/O error occurred during processing",
+                    "when": "the job terminates abnormally",
+                    "then": "the program attempts to close all open files and sets a non-zero return code to indicate failure",
+                    "l2_source_ref": "GAP::SYS-DEAD-01::ABNORMAL_TERMINATION"
+                  },
+                  {
+                    "id": "REFERENCE-DATA-MANAGEMEN-910-F1-S4-AC3",
+                    "path_type": "Edge Case",
+                    "given": "the batch job is cancelled by the operator via the console",
+                    "when": "the operator issues a cancel command",
+                    "then": "the job performs emergency close of files and exits with a return code that indicates cancellation",
+                    "l2_source_ref": "GAP::SYS-DEAD-01::OPERATOR_CANCEL"
+                  }
+                ],
+                "l2_sources": [
+                  "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_finalize"
+                ],
+                "technical_notes": "Maps to the CLOSE logic of PASFLPCB. In the COBOL program, all files are closed even during abnormal termination. The return code (typically stored in RETURN-CODE special register) is set to reflect the final status: 0 for success, 4 or higher for warnings/errors.",
+                "migration_hint": "A modern equivalent would be a batch job exit handler that flushes logs, closes connections, and sets a process exit code. Cloud-native solutions might use step function termination states.",
+                "non_functional_requirements": [],
+                "srs_evidence": [
+                  {
+                    "l2_id": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_finalize",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference/data/compare/pasgrp/smallmachines/finalize",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 55,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-910-F1-S4-AC1"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DEAD-01::ABNORMAL_TERMINATION",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DEAD-01::ABNORMAL_TERMINATION",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-910-F1-S4-AC2"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "GAP::SYS-DEAD-01::OPERATOR_CANCEL",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "GAP::SYS-DEAD-01::OPERATOR_CANCEL",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "business_rule",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [
+                      "REFERENCE-DATA-MANAGEMEN-910-F1-S4-AC3"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_initialize",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference/data/compare/pasgrp/smallmachines/initialize",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 55,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_process",
+                    "file_name": "1_APISpec_pasflpcb.md",
+                    "section_anchor": "2.3 Transactional (POST/PUT) Contract",
+                    "section_path": [
+                      "TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API “What”)",
+                      "2.3 Transactional (POST/PUT) Contract"
+                    ],
+                    "highlight_type": "section",
+                    "target_string": "POST /api/v1/reference/data/compare/pasgrp/smallmachines/process",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "section",
+                    "line_number": 55,
+                    "evidence_role": "write_contract",
+                    "srs_document_type": "APIContracts",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "generation_metadata": {
+          "generator_model": "deepseek/deepseek-v4-pro",
+          "iteration_count": 3,
+          "final_status": "FAIL_HALLUCINATION",
+          "generated_at": "2026-07-08T12:01:49.461998+00:00",
+          "correction_applied": true,
+          "gate_profile": "grounding_failed",
+          "failure_reason": "Gate 5f FAIL: Multiple acceptance criteria reference SRS:: API:: IDs (e.g., `SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_initialize`) that do not exist in the provided SRS document. The provided SRS (1_APISpec_pasflpcb.md) describes an orphan COPY book (PASFLPCB) and contains no batch program, API endpoints, or file comparison operations. The feature and all user stories are fabricated and do not map to any real content in the source document.\n\nGate 9a FAIL: Because the referenced L2 IDs are absent from the SRS, the acceptance criteria premises cannot be grounded in the source evidence. Every AC that cites a non-existent API:: ref is invalid.\n\nAdditionally, Gate 5f violations cascade to stories REFERENCE-DATA-MANAGEMEN-910-F1-S2, -S3, -S4. The entire feature is not derived from the provided SRS material.\n\nGates 1–4, 5h, 6, 7, 8 pass structurally, but the content mismatch is fatal.",
+          "review_guidance": {
+            "severity": "critical",
+            "recommended_action": "REGENERATE",
+            "approve_as_is_allowed": false,
+            "guideline": "Content is NOT grounded in the SRS (fabricated / contradicts the SRS). Do NOT approve as-is. Regenerate (often after fixing the upstream SRS) or hand-author from the SRS. Accepting requires an explicit written justification + reviewer identity.",
+            "flagged_story_ids": [
+              "REFERENCE-DATA-MANAGEMEN-910-F1-S2",
+              "REFERENCE-DATA-MANAGEMEN-910-F1-S3",
+              "REFERENCE-DATA-MANAGEMEN-910-F1-S4"
+            ],
+            "failure_summary": "Gate 5f FAIL: Multiple acceptance criteria reference SRS:: API:: IDs (e.g., `SRS::SYS-DEAD-01::API::POST_api_v1_reference_data_compare_pasgrp_smallmachines_initialize`) that do not exist in the provided SRS document. The provided SRS (1_APISpec_pasflpcb.md) describes an orphan COPY book (PASFLPCB) and contains no batch program, API endpoints, or file comparison operations. The feature and all user stories are fabricated and do not map to any real content in the source document.\n\nGate 9a FAIL: Because the referenced L2 IDs are absent from the SRS, the acceptance criteria premises cannot be grounded in the source evidence. Every AC that cites a non-existent API:: ref is invalid.\n\nAdditionally, Gate 5f violations cascade to stories REFERENCE-DATA-MANAGEMEN-910-F1-S2, -S3, -S4. The entire feature is not derived from the provided SRS material.\n\nGates 1–4, 5h, 6, 7, 8 pass structurally, but the content mismatch is fatal.",
+            "gate_reference": [
+              {
+                "gate": 5,
+                "name": "Acceptance-criteria rigour",
+                "meaning": "Each story has correct Gherkin ACs (one Happy / Negative / Edge path), and every “when” clause describes an observable USER action — not an internal system event."
+              },
+              {
+                "gate": 9,
+                "name": "AC evidence grounding",
+                "meaning": "Each AC's l2_source_ref is supported by the SRS: it does not contradict the source (9a), and negative/edge paths anchor to a real error event or an honest GAP marker (9b)."
+              }
+            ]
+          }
+        },
+        "module_business_name": "Database Segment Configuration Management",
+        "module_business_description": "Manages the definition and status of hierarchical database segments, tracking processing options, key feedback areas, and sensitive segment counts to support database operations."
+      }
+    ],
+    "total": 2,
+    "approved": 1
+  }
+}

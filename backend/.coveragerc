@@ -1,0 +1,18 @@
+[run]
+omit =
+    app/services/document_parser_service.py
+    app/services/ui_parser_service.py
+    app/services/fragment_embedding_service.py
+    app/services/fragment_service.py
+    app/clients/llamaparser_client.py
+    app/clients/llm_factory.py
+    app/utils/embedder.py
+    app/utils/openapi.py
+    app/db/init_and_migrate.py
+    app/db/seed_db.py
+    app/workers/worker.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:

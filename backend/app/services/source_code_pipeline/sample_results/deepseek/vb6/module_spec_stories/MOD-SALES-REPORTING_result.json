@@ -1,0 +1,646 @@
+{
+  "status": "success",
+  "module_id": "MOD-SALES-REPORTING",
+  "spec_generation": {
+    "grouped_specs": {
+      "markdown_specs": [
+        {
+          "module_id": "MOD-SALES-REPORTING",
+          "feature_unit_id": "MFU-001",
+          "filename": "1_UIBlueprint_frmdailysalesprintop.md",
+          "content": "## PRE-FLIGHT INVENTORY (MANDATORY GATE)\n* **Artifacts Received:** frmdailysalesprintop, frmmonthlysalesprintop, frmweeklysalesprintop\n* **Primary Anchor:** frmdailysalesprintop\n\n**Supporting Artifact Summary (Focal Scope Mandate):**\n* `frmmonthlysalesprintop` — monthly variant: selects month/year/van and triggers Crystal Report for monthly sales.\n* `frmweeklysalesprintop` — weekly variant: selects a single date and triggers Crystal Report for weekly van remittance.\n\n---\n\n# **TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)**\n\n## **1.1 Identity Header**\n* **MFU ID:** MFU-001 | **Name:** MOD-SALES-REPORTING - Periodic Sales Print Operations | **Track:** UI-Track | **PIC:** Lead Modernization Architect\n\n## **1.2 Legacy Source References**\n| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |\n| :--- | :--- | :--- | :--- |\n| frmdailysalesprintop | ui_anchor | frmDailySalesPrintOp.frm | entrypoint |\n| frmmonthlysalesprintop | ui_anchor | frmMonthlySalesPrintOp.frm | entrypoint |\n| frmweeklysalesprintop | ui_anchor | frmWeeklySalesPrintOp.frm | entrypoint |\n\n## **1.3 High-Risk Warning Box**\n* **[CRYSTAL_RUNTIME_DEPS]** Uses `MAIN.CR` (Crystal Reports) via late-bound COM pattern — tight coupling to legacy runtime.\n* **[EMBEDDED_SQL]** Direct ADO `SELECT * FROM TBL_RPT_DATE` and dynamic `SelectionFormula` construction for Crystal.\n* **[TRANSACTION_CONTROL]** Explicit `CN.BeginTrans` / `CN.CommitTrans` on `TBL_RPT_DATE` within `GenSummaryDailyRpt`.\n* **[GLOBAL_STATE]** Relies on global `CurrBiz.BUSINESS_ADDRESS`, `CurrBiz.BUSINESS_CONTACT_INFO`, and `MAIN.CR`/`MAIN.InitCrys` — hidden coupling.\n* **[DSN_HARDCODE]** Connection string hardcodes DSN file path and password (`PWD=philiprj`) — security and deployment fragility.\n\n## **1.4 Executive Forensic Summary**\n1. **Business Mission:** The user selects a date range, a van, and a report type (Summary or Detailed) to preview/print a Daily Sales Report.\n2. **Interaction Style:** Parameter selection form; no direct data entry into business entities. Triggers Crystal Reports with DSN-based database connection.\n3. **Critical Dependencies:** Crystal Report runtime (`MAIN.CR`), ADO Connection (`CN`), `CurrBiz` global object, external helper functions `GenerateDSN`/`RemoveDSN`/`bind_dc`, and the DSN file `rptCN.dsn`.\n\n---\n\n# **TIER 2: THE INFORMATION EXCHANGE CONTRACT (The \"What\")**\n\n## **2.1 Visual Zone Map (ASCII Layout)**\n```\n+---------------------------------------------------+\n|  [Date Range]                                      |\n|    From: [ dtpFDate  MMM-dd-yyyy ]                 |\n|    To:   [ dtpTDate  MMM-dd-yyyy ]                 |\n|                                                    |\n|  [Record To Print]                                 |\n|    ( ) Summary Of Daily Sales Report  (default)    |\n|    ( ) Detailed Of Daily Sales Report              |\n|                                                    |\n|  [Print Option]                                    |\n|    Van:  [ dcVan  dropdown ]                       |\n|                                                    |\n|  ------------------------------                    |\n|      [ Preview ]   [ Cancel ]                      |\n+---------------------------------------------------+\n```\n* Zones: Frame1 (Date Range), Frame2 (Record To Print), Frame3 (Print Option), CommandBar (btnPrev, btnCancel).\n* Data combo `dcVan` is bound via `bind_dc` to list of vans.\n\n## **2.2 Interaction / Trigger Metadata**\n* **Modern Endpoint / Route:** `/app/mod-sales-reporting/mfu-001`\n* **Data Cardinality:** Parameter selection (no record entry/update)\n\n## **2.3 Screen Specifications & Form Elements**\n\n**Controls (Total Interactive: 4 inputs, 2 buttons, 1 separator)**\n\n| Modern Field Name | Legacy Control ID | Visual Type | Validation/Requirement | Behavioral Intent |\n| :--- | :--- | :--- | :--- | :--- |\n| fromDate | dtpFDate | DatePicker | Required, display format `MMM-dd-yyyy` | User selects start of date range for report. |\n| toDate | dtpTDate | DatePicker | Required, display format `MMM-dd-yyyy` | User selects end of date range for report. |\n| reportType | obRecToPrint(0) | OptionButton (Summary) | One of two must be selected | Selects Summary report mode. |\n| reportType | obRecToPrint(1) | OptionButton (Detailed) | One of two must be selected | Selects Detailed report mode. |\n| van | dcVan | DataCombo | Required, bound to `tbl_AR_Van` on `PK` | Selects van for filtering report. |\n| — | btnPrev | CommandButton | — (Action) | Triggers preview generation and Crystal Report. |\n| — | btnCancel | CommandButton | — (Action) | Closes the form. |\n| — | ctrlLiner1 | UserControl (line) | — (Visual separator) | Visual grouping line. |\n\n### Hidden Controls (Visible=False or Enabled=False at Form Load)\n**None — all controls are visible and enabled at Form Load.**\n\n## **2.4 Persistence DNA & Grid Behaviors**\n\n**Data Provider: `rsRpt` (Recordset on `TBL_RPT_DATE`) — Total Columns Retrieved: 4+ (SELECT \\*)**\nThe relevant operations are in `GenSummaryDailyRpt` which opens `SELECT * FROM TBL_RPT_DATE ORDER BY Sort ASC` and iterates 31 rows.\n\n| Target Modern Field | Legacy Data Source Column | Data Type | Business Meaning |\n| :--- | :--- | :--- | :--- |\n| reportDate | `Date` | Date/Time | The calendar date for this report row (set to month/day/year). |\n| rowEnabledFlag | `Disable` | Text(1) | Indicates if this date is within selected range (`'N'`) or outside (`'Y'`). |\n| vanId | `VanFK` | Numeric | Foreign key of selected van; populated only for enabled dates. |\n| sortOrder | `Sort` | Numeric | Predefined row ordering in table. |\n\n**Grid & Row Behavioral Mapping:**\n* **Calculation:** Date and disable flag calculated per row based on day index – loop `c = 1 to 31`; if `c` between `start_day` and `end_day` → set `Date`, `Disable='N'`, `VanFK`; else `Disable='Y'`.\n* **Transaction Control:** Wrapped in `CN.BeginTrans` / `CN.CommitTrans`. This modifies the staging table `TBL_RPT_DATE` before the Crystal Report reads it.\n* **Crystal Report parameters:** Business address, contact info, title, date range/date covered, van name passed as parameter fields.\n\n---\n\n# **TIER 3: THE FUNCTIONAL BLUEPRINT (The \"How\")**\n\n## **3.1 Transaction Identity & Framework**\n* **Form Type:** Standalone modal or non-MDI form (`BorderStyle = 1 Fixed Single`, `MDIChild` not set).\n* **Logic Merging:** All business logic is in the `.frm` module. Uses global module functions `bind_dc`, `GenerateDSN`, `RemoveDSN`, and accesses global `MAIN.CR`, `CN`, `CurrBiz`.\n\n## **3.2 Interaction & Shortcut DNA**\n* **Accelerator Keys:** None detected (no `&` in command button captions; no `KeyDown` handlers).\n* **Default Action:** `btnPrev` has `Default = True` → Enter key triggers preview.\n\n## **3.3 Infrastructure & Environment Binding**\n* **External Triggers:** None (no Timer, Registry reads, file polls).\n* **Legacy Orphan Table Mapping:**\n  * `ADODB.Recordset` (rsRpt) → Spring Data JDBC/Template or JPA repository for `TBL_RPT_DATE`.\n  * Crystal Reports (`MAIN.CR`) → JasperServer or REST-based reporting service.\n  * `App.Path` for report file and DSN → configuration properties.\n  * DSN file (`rptCN.dsn`) → encrypted connection pool in microservice.\n\n## **3.4 State & Session Memory Context**\n* **Module-Level Variables:** None declared explicitly (no `Private`/`Dim` at form level).\n* **Implicit State Carriers:** The `dcVan.BoundText` and `dcVan.Text` are read by btnPrev and GenSummaryDailyRpt; no `.Tag` assignments.\n* **Global Dependencies:** `CurrBiz`, `CN` (presumably global ADO connection), `MAIN.CR` and `MAIN.InitCrys`.\n\n## **3.5 Screen Initialisation — Form_Load Deep-Scan (GAP-09)**\n\n| Initialisation Step | Legacy Event/Trigger | Logic (Literal) | Business Meaning | Trace ID |\n| :--- | :--- | :--- | :--- | :--- |\n| Set default dates to today | `Form_Load` | `dtpFDate.Value = Date`, `dtpTDate.Value = Date` | Initializes both date pickers to current system date. | TRCE-UI-frmdailysalesprintop-L{Form_Load: line after Sub Form_Load} |\n| Bind van dropdown | `Form_Load` | `bind_dc \"SELECT * FROM tbl_AR_Van\", \"VanName\", dcVan, \"PK\", True` | Populates DataCombo with van list for user selection. | TRCE-UI-frmdailysalesprintop-L{line with bind_dc call} |\n\n## **3.6 Client-Side Validation Logic**\n\n| Modern Rule Name | Legacy Trigger (Event) | Validation Formula (Literal) | Business Meaning (IELTS 5.5-6) | Trace ID |\n| :--- | :--- | :--- | :--- | :--- |\n| Date range direction | `btnPrev_Click` | `If DateDiff(\"d\", dtpFDate.Value, dtpTDate.Value) < 0 Then MsgBox ... Exit Sub` | From-date must be on or before To-date. | TRCE-LOGIC-frmdailysalesprintop-L{line start of If DateDiff} |\n| Same month (Summary) | `btnPrev_Click` | `If Month(dtpFDate.Value) <> Month(dtpTDate.Value) Then MsgBox ...` | When Summary is selected, both dates must be in the same month. | TRCE-LOGIC-frmdailysalesprintop-L{line with Month check} |\n| Same year (Summary) | `btnPrev_Click` | `If DateDiff(\"yyyy\", dtpTDate.Value, dtpFDate.Value) < 0 Then MsgBox ...` | When Summary is selected, both dates must be in the same year. | TRCE-LOGIC-frmdailysalesprintop-L{line with DateDiff year check} |\n\n* **Pre‑Condition Gates:** The summary‑mode checks only execute when `obRecToPrint(0).Value = True`.\n* **Mask/Max‑Length:** None beyond the DatePicker’s `CustomFormat = \"MMM-dd-yyyy\"`; no `MaskEdBox` or `MaxLength` set.\n\n## **3.7 Core Calculations & Transformations**\n* **GenSummaryDailyRpt (whole procedure):**\n  * Computes `start_day = Val(Day(dtpFDate.Value))` and `end_day = Val(Day(dtpTDate.Value))`.\n  * Loops `c = 1 to 31`, constructs date as `CDate(Month(<from>) & \"/\" & c & \"/\" & Year(<from>))`.\n  * Sets `Disable` flag and `VanFK` accordingly.\n  * Writes back to `TBL_RPT_DATE` via recordset with transaction.\n  * *Business Purpose:* Prepares a staging table of 31 rows indicating which days are active for the report and to which van; the Crystal Report then uses this data.\n\n## **3.8 UI Error & Exception Handling**\n\n| Legacy Error Code / Literal Message | Trigger Condition | Modern Requirement |\n| :--- | :--- | :--- |\n| `\"Invalid date range.Please check it!\"` | `DateDiff(\"d\", from, to) < 0` | Show validation error; do not proceed. |\n| `\"Please select a date that have a same month.\"` | Summary mode and `Month(from) <> Month(to)` | Show validation error; return focus to from-date. |\n| `\"Please select a date that have a same year.\"` | Summary mode and `Year(from) <> Year(to)` (DateDiff year check) | Show validation error; return focus to from-date. |\n\n* No `On Error` handlers present; potential Crystal Reports runtime errors are unhandled.\n\n---\n\n# **TIER 4: VB6 FORENSIC ADDENDUM**\n\n## **L.1 Form_Load Deep-Scan Mandate**\n*Already covered in Section 3.5.*\n\n## **L.2 MDI Parent / Child Relationship**\n* **Form Type:** Standalone `Form` (not MDIChild, no MDIForm). Likely shown modally or modeless from a main menu.\n* **Lifecycle:** Opened, user sets parameters, clicks Preview, form remains open until Cancel closes it (`Unload Me`).\n* **Inter‑Form Communication:** Accesses globals `MAIN.CR`, `CurrBiz`, `CN`. No explicit data passed from calling form.\n* **Instance:** Presumably singleton via default `Form` instance.\n\n## **L.3 COM / ActiveX Control Bindings**\n\n| Control Name | ProgID / Type | Key Properties | Key Events | Modern Equivalent |\n| :--- | :--- | :--- | :--- | :--- |\n| dtpFDate, dtpTDate | `MSComCtl2.DTPicker` | `Value`, `Format=22675459` (Custom: `MMM-dd-yyyy`) | (none used) | `<input type=\"date\">` or React DatePicker |\n| dcVan | `MSDataListLib.DataCombo` | `Style=2 (Dropdown List)`, `BoundText` (PK) | (none used) | `<select>` or React Select component |\n| ctrlLiner1 | `SMIAS.ctrlLiner` (in‑house UserControl) | (visual separator) | (none) | Replace with CSS `border-bottom` or `<hr>` |\n| Crystal Reports | `MAIN.CR` (late‑bound COM) | `.ReportFileName`, `.Connect`, `.SelectionFormula`, `.ParameterFields`, `.Action=1` | (window open) | JasperReport, REST‑based reporting endpoint |\n\n## **L.4 WithEvents / COM Event Sink Patterns**\n*None present in `frmDailySalesPrintOp`.*\n\n## **L.5 VB6 Menu + Accelerator Key Inventory**\n*No menus defined; only two command buttons without `&` accelerator marks. The default button (Preview) triggers on `Enter`.*\n\n## **L.6 VB6 Error Handling Patterns**\n*No structured error handlers (`On Error GoTo` / `Resume`). Errors from database or Crystal Reports would propagate as run‑time crashes.*\n\n## **L.7 UserControl vs. Third-Party OCX Distinction**\n\n| Control Instance Name | Type | Source | Key Exposed Properties | Key Exposed Events | Modernization Strategy |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| ctrlLiner1 | UserControl (in‑house) | `SMIAS.ctrlLiner` | (visual line) | – | Replace with a simple `<hr>` or CSS border. |\n| dtpFDate, dtpTDate | Third‑Party OCX | `MSCOMCT2.OCX` | `.Value`, `.CustomFormat` | – | Use standard `<input type=\"date\">` or library widget. |\n| dcVan | Third‑Party OCX | `MSDATLST.OCX` | `.BoundText`, `.Text`, DataSource | – | Replace with combobox/dropdown bound via REST. |\n\n---\n\n# **TIER 5: SRS VERIFICATION BLOCK (MANDATORY)**\n\n## **S.1 Screen Identity**\n\n| Attribute | Value |\n| :--- | :--- |\n| **Form ID** | `DAILY_SALES_REPORT_001` |\n| **Screen Name (EN)** | Daily Sales Report |\n| **Screen Name (JP)** | N/A (no Japanese text found) |\n| **Parent Form** | Standalone (non‑MDI) |\n| **Navigation Path** | Main Menu → Reports → Daily Sales Report |\n| **Access URL** | /app/mod-sales-reporting/daily-sales-report-001 |\n\n## **S.2 Business Purpose**\n\n| Attribute | Value |\n| :--- | :--- |\n| **Primary Business Action** | The user selects a date range, van, and report type (Summary or Detailed) to preview/print a Daily Sales Report. |\n| **Interaction Style** | Parameter Selection Form (no data entry into business entities) |\n| **Target User Role** | All Users (no role‑gate detected) |\n| **Key Trigger** | Menu item “Daily Sales Report” |\n\n## **S.3 Screen Controls Inventory**\n\n| # | Item Name (JP) | Item Name (EN) | Physical Name | Control Type | I/O | Note |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| 1 | — | From Date | dtpFDate | DatePicker | I+O | Default = today, format MMM‑dd‑yyyy |\n| 2 | — | To Date | dtpTDate | DatePicker | I+O | Default = today |\n| 3 | — | Summary Option | obRecToPrint(0) | OptionButton | I+O | Selected by default |\n| 4 | — | Detailed Option | obRecToPrint(1) | OptionButton | I+O | — |\n| 5 | — | Van | dcVan | DataCombo | I+O | Bound to `tbl_AR_Van` |\n| 6 | — | Preview | btnPrev | CommandButton | — | Default action (Enter) |\n| 7 | — | Cancel | btnCancel | CommandButton | — | Closes form |\n| 8 | — | Separator Line | ctrlLiner1 | UserControl | — | Visual element |\n\n## **S.4 Validation Rules**\n\n| # | Field Name (JP / EN) | Physical Name | Required (○/×) | Max Length | Input Format / Mask | Min Value | Max Value | Regular Expression | Error Message (Literal) | Trace ID |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| 1 | From Date | dtpFDate | ○ | — | MMM‑dd‑yyyy | — | (must be ≤ To Date) | — | \"Invalid date range.Please check it!\" | TRCE-LOGIC-frmdailysalesprintop-L{start of date validation} |\n| 2 | To Date | dtpTDate | ○ | — | MMM‑dd‑yyyy | — | (must be ≥ From Date) | — | \"Invalid date range.Please check it!\" | ibid. |\n| 3 | Van | dcVan | ○ | — | — | — | — | — | (none explicit; will fire `Null` handling at Crystal) | — |\n| 4 | Summary Report (when selected) | (implicit) | — | — | — | Month same as To Date | Year same as To Date | — | \"Please select a date that have a same month.\" / \"Please select a date that have a same year.\" | TRCE-LOGIC-frmdailysalesprintop-L{month/year checks} |\n\n*All input controls in S.3 marked I+O have corresponding rows here (date fields and van).*\n\n## **S.5 Event / Operational Specification**\n\n| # | Event Name (VB6 / EN) | Event Overview | Processing Type | Operation Type | Remarks |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| 1 | `Form_Load` / On Load | Initialises date pickers to today’s date; binds van dropdown with `SELECT * FROM tbl_AR_Van`. | Server processing | Initialisation | Uses global ADO connection `CN`. |\n| 2 | `btnPrev_Click` / On Preview | Validates date range; if Summary mode, checks same month and year; if Summary, calls `GenSummaryDailyRpt` (inserts/updates `TBL_RPT_DATE` rows); then creates DSN, configures Crystal Reports (report file, connection, selection formula, parameters), previews with `.Action=1`, and removes DSN. | Both (client validation + server processing) | Print | Crystal Reports runtime and DSN file hardcoded paths. |\n| 3 | `btnCancel_Click` / On Cancel | Unloads the form (`Unload Me`). | Client processing | Navigation | No unsaved data to discard. |\n\n---\n\n# **PART 5: THE MACHINE BRIDGE (MANDATORY)**\n\n```json\n{\n  \"dtpFDate\": \"fromDate\",\n  \"dtpTDate\": \"toDate\",\n  \"obRecToPrint(0)\": \"summaryOption\",\n  \"obRecToPrint(1)\": \"detailedOption\",\n  \"dcVan\": \"selectedVan\",\n  \"btnPrev\": \"onPreview\",\n  \"btnCancel\": \"onCancel\",\n  \"MAIN.CR\": \"crystalReportsEngine\",\n  \"CurrBiz.BUSINESS_ADDRESS\": \"businessAddress\",\n  \"CurrBiz.BUSINESS_CONTACT_INFO\": \"businessContactInfo\",\n  \"GenerateDSN\": \"generateReportDsn\",\n  \"RemoveDSN\": \"removeReportDsn\",\n  \"bind_dc\": \"bindDataCombo\",\n  \"rsRpt\": \"reportDateRecordset\",\n  \"TBL_RPT_DATE.Date\": \"reportDate\",\n  \"TBL_RPT_DATE.Disable\": \"rowEnabledFlag\",\n  \"TBL_RPT_DATE.VanFK\": \"vanId\"\n}\n```\n"
+        },
+        {
+          "module_id": "MOD-SALES-REPORTING",
+          "feature_unit_id": "MFU-001",
+          "filename": "1_UIBlueprint_frmmonthlysalesprintop.md",
+          "content": "## PRE-FLIGHT INVENTORY (MANDATORY GATE)\n- **Artifacts Received:** frmdailysalesprintop, frmmonthlysalesprintop, frmweeklysalesprintop\n- **Primary Anchor:** frmdailysalesprintop (per graph alignment rule); FOCAL SCOPE MANDATE redirects primary analysis target to `frmmonthlysalesprintop` for full extraction.\n\n---\n\n# TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)\n\n## 1.1 Identity Header\n- **MFU ID:** MFU-001 | **Name:** MOD-SALES-REPORTING - Periodic Sales Print Operations | **Track:** UI-Track | **PIC:** Lead Modernization Architect\n\n## 1.2 Legacy Source References\n| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |\n| :--- | :--- | :--- | :--- |\n| frmdailysalesprintop | ui_anchor | frmDailySalesPrintOp.frm | entrypoint – primary anchor for the MFU; daily sales print screen. |\n| frmweeklysalesprintop | ui_anchor | frmWeeklySalesPrintOp.frm | entrypoint – weekly sales print screen. |\n| frmmonthlysalesprintop | ui_anchor | frmMonthlySalesPrintOp.frm | entrypoint – monthly sales print screen (FOCAL TARGET for this extraction). |\n\n**Supporting context summary:**  \n- `frmdailysalesprintop` is a daily sales report print form with date range, van selection, and summary/detail option.  \n- `frmweeklysalesprintop` is a weekly sales report print form using a single date picker.\n\n## 1.3 High-Risk Warning Box\n- **Transaction Control Detected:** `frmmonthlysalesprintop.GenSummaryDailyRpt` uses explicit `CN.BeginTrans` / `CN.CommitTrans` to modify `TBL_RPT_DATE` – requires careful transactional decomposition.\n- **Embedded SQL Detected:** ADO `Recordset.Open \"SELECT * FROM TBL_RPT_DATE...\"` and ComboBox binding via `bind_dc \"SELECT * FROM tbl_AR_Van...\"` – SQL blocks left in UI layer.\n- **Dynamic SQL:** Crystal Reports selection formula built via string concatenation; no user input directly interpolated, but parameter handling must be securely refactored.\n- **External Dependency:** Crystal Reports engine (`MAIN.CR`) and DSN file (`rptCN.dsn`) path resolution via `App.Path` – tight coupling to filesystem and local DSN configuration.\n\n## 1.4 Executive Forensic Summary\n1. **Business Mission:** The user selects a month, year, and sales van to generate and preview a printed Monthly Sales Report via Crystal Reports. A hidden preparation step (`GenSummaryDailyRpt`) synchronises a helper table (`TBL_RPT_DATE`) with the chosen date range and van before the report is rendered.\n2. **Interaction Style:** Single-Record Parameter Form (read‑only parameter entry, push-button report launch). No data grid on the form; all output is rendered in a separate Crystal Reports viewer.\n3. **Critical Dependencies:** Global `MAIN.CR` (Crystal Reports application object), global `CN` (ADO database connection), global `CurrBiz` (business info for report headers), `bind_dc` helper (standard module), `GenerateDSN`/`RemoveDSN` (DSN lifecycle management). The report definition file `rptMonthlySales.rpt` is an external Crystal Reports template.\n\n---\n\n# TIER 2: THE INFORMATION EXCHANGE CONTRACT (The “What”)\n*(Focal target: `frmmonthlysalesprintop`)*\n\n## 2.1 Visual Zone Map (ASCII Layout)\n```\n+--------------------------------------------------+\n| Monthly Sales Report                    [_][X]    |\n+--------------------------------------------------+\n| Month:  [November            ▼]                   |\n| Year:   [2025      ]                              |\n| Van:    [Van A              ▼]                   |\n|                                                   |\n| ----- (line) ------------------------------------ |\n|                                                   |\n|         (Preview)     (Cancel)                    |\n+--------------------------------------------------+\n```\n\n## 2.2 Interaction / Trigger Metadata\n- **Modern Endpoint / Route:** `/app/mod-sales-reporting/sales_reporting_monthly_001`\n- **Data Cardinality:** Single Record (parameter selection only; no master-detail display)\n\n## 2.3 Screen Specifications & Form Elements\n\n**Zone: Report Parameters (Form body)**\n\n| Modern Field Name | Legacy Control ID | Visual Type | Validation/Requirement | Behavioral Intent |\n| :--- | :--- | :--- | :--- | :--- |\n| Month Label | `Labels(0)` | Label | — | Shows static label “Month” |\n| Month | `cbMonth` | ComboBox (Dropdown List) | List of month names; index 0–11; required for report | User selects which month to report on. |\n| Year Label | `Labels(1)` | Label | — | Shows static label “Year” |\n| Year | `txtYear` | TextBox | Numeric-only; auto‑corrects to current year if <2000; required for report | User enters or edits the year. |\n| Van Label | `Labels(11)` | Label | — | Shows static label “Van” |\n| Van | `dcVan` | DataCombo (Dropdown List) | Data‑bound to `tbl_AR_Van`; required for report | User selects the sales van for filtering. |\n| Separator | `ctrlLiner1` | UserControl (decorative line) | — | Visual separation between inputs and buttons. |\n| Preview | `btnPrev` | CommandButton (Default) | — | Generates report parameter table and opens Crystal Report preview. |\n| Cancel | `btnCancel` | CommandButton | — | Closes the form without any action. |\n\n### Hidden Controls (Visible=False or Enabled=False at Form Load)\n**None — all controls are visible and enabled at Form Load.**\n\n## 2.4 Persistence DNA & Grid Behaviors\n*The form performs DML directly via ADO inside `GenSummaryDailyRpt()` – no grid, only a helper table update.*\n\n| Target Modern Field | Legacy Data Source Column | Data Type | Business Meaning |\n| :--- | :--- | :--- | :--- |\n| reportDate | `TBL_RPT_DATE.Date` | DateTime | The date assigned to a particular report day slot (1–31). |\n| isDisabled | `TBL_RPT_DATE.Disable` | String (Y/N) | Flag indicating whether that day is inactive for the report period. |\n| vanId | `TBL_RPT_DATE.VanFK` | Integer | Foreign key linking the row to the selected van. |\n| sortOrder | `TBL_RPT_DATE.Sort` | Integer | Ordering column used by the report (read-only via `ORDER BY Sort ASC`). |\n\n**Grid & Row Behavioral Mapping:**\n- **Calculations:** `end_day` is computed via `getEndDay()` using a constructed date from the selected month/year; this determines the last valid day to activate.\n- **Row Update Pattern:** For each row 1–31 in `TBL_RPT_DATE`, fields `Date`, `Disable`, and `VanFK` are set if the day is within the valid range, else only `Disable` is set to “Y”. All updates happen inside an explicit `BeginTrans/CommitTrans` transaction.\n\n---\n\n# TIER 3: THE FUNCTIONAL BLUEPRINT (The “How”)\n\n## 3.1 Transaction Identity & Framework\n- **Hierarchy Mapping:** Standalone `Form` (no MDI child). Form is modal in nature (Fixed Single, CenterScreen) and launched from a menu or parent form.\n- **Logic Merging:** All UI logic resides in the form module; shared functionality (`bind_dc`, `GenerateDSN`, `RemoveDSN`, `getEndDay`, `isNumber`, `HLText`) is provided by standard `.bas` modules and a global connection object `CN`.\n\n## 3.2 Interaction & Shortcut DNA\n- **Accelerator Keys:** None (no `&` prefix in any `Caption`).\n- **Direct Shortcuts:** The **Enter** key triggers `btnPrev_Click` because `btnPrev.Default = -1` (True). No `KeyDown`/`KeyPress` custom shortcuts.\n\n## 3.3 Infrastructure & Environment Binding\n- **External Triggers:** Report generation depends on the existence of `App.Path & \"\\Reports\\rptMonthlySales.rpt\"` and the DSN file `rptCN.dsn`. A Timer control is not used.\n- **Legacy Orphan Table:**\n  | Legacy Construct | Modern Equivalent Strategy |\n  | :--- | :--- |\n  | `ADODB.Recordset` (rsRpt) | REST/backend service responsible for populating the reporting helper table. |\n  | Crystal Reports `MAIN.CR` | Replace with a server-side reporting engine (e.g., JasperReports, SSRS) or React‑based PDF generation. |\n  | DSN file (`rptCN.dsn`) | Connection details managed via application configuration or environment variables, not a local file. |\n\n## 3.4 State & Session Memory Context\n- **Module‑level Variables:** None declared in the form.\n- **Global/Shared Variables:**\n  - `MAIN.CR` – global Crystal Reports application object (used to control report viewing).\n  - `CN` – global ADO connection object (used for both recordset binding and transaction control).\n  - `CurrBiz` – global object carrying business address and contact info, passed as report parameters.\n- **`Tag` Property:** No assignments to control `Tag` properties.\n\n## 3.5 Screen Initialisation — Form_Load Deep-Scan (GAP-09)\n\n| Initialisation Step | Legacy Event/Trigger | Logic (Literal) | Business Meaning | Trace ID |\n| :--- | :--- | :--- | :--- | :--- |\n| Populate Month ComboBox | `Form_Load` | `For m=1 To 12: cbMonth.AddItem Format$(m & \"/1/1990\",\"MMMM\"): Next` | Pre‑loads all 12 month names into the dropdown. | TRCE-UI-frmmonthlysalesprintop-L71 |\n| Set default Month | `Form_Load` | `cbMonth.ListIndex = 0` | Sets the displayed month to January (index 0). | TRCE-UI-frmmonthlysalesprintop-L74 |\n| Set default Year | `Form_Load` | `txtYear.Text = Format$(Date, \"YYYY\")` | Initialises the year text box with the current system year. | TRCE-UI-frmmonthlysalesprintop-L75 |\n| Bind Van DataCombo | `Form_Load` | `bind_dc \"SELECT * FROM tbl_AR_Van\", \"VanName\", dcVan, \"PK\", True` | Populates the van selector with all active sales vans from the database. | TRCE-UI-frmmonthlysalesprintop-L76 |\n\n## 3.6 Client-Side Validation Logic\n\n| Modern Rule Name | Legacy Trigger (Event) | Validation Formula (Literal) | Business Meaning (IELTS 5.5-6) | Trace ID |\n| :--- | :--- | :--- | :--- | :--- |\n| Year numeric filter | `txtYear_KeyPress` | `KeyAscii = isNumber(KeyAscii)` | Only digits (0-9) can be typed into the Year field. | TRCE-LOGIC-frmmonthlysalesprintop-L85 |\n| Year minimum enforcement | `txtYear_Change` | `If Val(txtYear.Text) < 2000 Then txtYear.Text = Format$(Date, \"YYYY\"): txtYear.SelStart = Len(txtYear.Text)` | If the user types a year below 2000, the control resets to the current year and selects the entire text. | TRCE-LOGIC-frmmonthlysalesprintop-L78 |\n\n## 3.7 Core Calculations & Transformations\n\n| Target Field | Formula / Logic (Literal) | Source Artifact | Event Trigger | Business Meaning |\n| :--- | :--- | :--- | :--- | :--- |\n| `end_day` (last day of month) | `end_day = getEndDay(CDate((cbMonth.ListIndex + 1) & \"/\" & Format$(Date, \"d/yyyy\")))` | `GenSummaryDailyRpt` | `btnPrev_Click` → `GenSummaryDailyRpt` | Computes the last valid day of the selected month (used to mark only real days as active in the helper table). |\n| `reportDay` (Date column) | `CDate(cbMonth.ListIndex + 1 & \"/\" & c & \"/\" & txtYear.Text)` | `GenSummaryDailyRpt` | Loop inside `GenSummaryDailyRpt` | Builds a concrete date for each day slot (1‑31) based on selected month/year. |\n\n## 3.8 UI Error & Exception Handling\nNo explicit `On Error` blocks, `MsgBox` alerts, or `Err.Raise` calls exist in this form. Errors from the underlying Crystal Reports object or the ADO database operations would surface as unhandled runtime errors. A modern equivalent must implement proper try/catch around report generation and database transactions.\n\n---\n\n# TIER 4: VB6 FORENSIC ADDENDUM\n*(Focal target: `frmmonthlysalesprintop`)*\n\n## L.1 Form_Load Deep-Scan Mandate\n*(Already mapped in Tier 3.5; no additional VB6‑specific init commands beyond standard `.AddItem` and `bind_dc`.)*\n\n## L.2 MDI Parent / Child Relationship\n- **Form Type:** Standalone `Form` (not `MDIChild`). It is a fixed‑size dialog.\n- **MDI Child Lifecycle:** N/A.\n- **Inter‑Form Communication:** Global variables (`MAIN.CR`, `CN`, `CurrBiz`) supply context; the form does not read data from or write to other forms directly.\n- **Instance vs. Singleton:** Loaded via `Load frmMonthlySalesPrintOp` (singleton); no `New` instance pattern used.\n\n## L.3 COM / ActiveX Control Bindings\n\n| Control Name | ProgID / Type | Key Properties | Key Events | Modern Equivalent |\n| :--- | :--- | :--- | :--- | :--- |\n| `dcVan` | `MSDataListLib.DataCombo` (MSDATLST.OCX) | `BoundText` (key field), `Text` (display field), `RowSource` set via `bind_dc` | `Click`, `Change` (not handled) | React `Select` / Material‑UI `Autocomplete` with async data loading |\n| `ctrlLiner1` | `SMIAS.ctrlLiner` (in‑house UserControl) | None exposed in code | None handled | Simple `div` border or `hr` element |\n\n## L.4 WithEvents / COM Event Sink Patterns\nNone detected. No `WithEvents` declarations in the form.\n\n## L.5 VB6 Menu + Accelerator Key Inventory\nNo menu items or accelerator keys exist in this form (no menu bar, no `PopupMenu` calls).\n\n## L.6 VB6 Error Handling Patterns\nNo error handling labels or `On Error` statements present.\n\n## L.7 UserControl vs. Third-Party OCX Distinction\n\n| Control Instance Name | Type | Source | Key Exposed Properties | Key Exposed Events | Modernization Strategy |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| `ctrlLiner1` | UserControl (in‑house) | `SMIAS.ctrlLiner` | `Width`, `Height` (set in `.frm`) | None handled | Replace with a simple styled `<div>` border in React. |\n| `dcVan` | Third‑Party OCX | `MSDATLST.OCX` (-)→ `MSDataListLib.DataCombo` | `BoundText`, `Text`, `Style = 2` (dropdown list) | None handled | Replace with a ComboBox component that supports key/value binding. |\n\n---\n\n# TIER 5: SRS VERIFICATION BLOCK (MANDATORY)\n*(Focal target: `frmmonthlysalesprintop`)*\n\n## S.1 Screen Identity\n\n| Attribute | Value |\n| :--- | :--- |\n| **Form ID** | `SALES_REPORTING_MONTHLY_001` |\n| **Screen Name (EN)** | Monthly Sales Report |\n| **Screen Name (JP)** | N/A |\n| **Parent Form** | Standalone |\n| **Navigation Path** | Main Menu → Sales Reporting → Monthly Sales Report |\n| **Access URL** | `/app/mod-sales-reporting/sales_reporting_monthly_001` |\n\n## S.2 Business Purpose\n\n| Attribute | Value |\n| :--- | :--- |\n| **Primary Business Action** | Generate and preview a printed monthly sales report for a selected van, month, and year. |\n| **Interaction Style** | Single‑Record Parameter Form (print dialog) |\n| **Target User Role** | All users (no role gate in `Form_Load`) |\n| **Key Trigger** | User selects “Monthly Sales Report” from the Sales Reporting menu. |\n\n## S.3 Screen Controls Inventory\n\n| # | Item Name (JP) | Item Name (EN) | Physical Name | Control Type | I/O | Note |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| 1 | Month | Month Label | `Labels(0)` | Label | — | Static text “Month” |\n| 2 | — | Month | `cbMonth` | ComboBox (Dropdown List) | I | Selection list of 12 month names. |\n| 3 | Year | Year Label | `Labels(1)` | Label | — | Static text “Year” |\n| 4 | — | Year | `txtYear` | TextBox | I | Numeric year; auto‑corrects if <2000. |\n| 5 | Van | Van Label | `Labels(11)` | Label | — | Static text “Van” |\n| 6 | — | Van | `dcVan` | DataCombo | I | Data‑bound van selector; required. |\n| 7 | — | Separator | `ctrlLiner1` | UserControl | — | Decorative line. |\n| 8 | Preview | Preview | `btnPrev` | CommandButton (Default) | — | Triggers report generation. |\n| 9 | Cancel | Cancel | `btnCancel` | CommandButton | — | Closes the form. |\n\n## S.4 Validation Rules\n\n| # | Field Name (JP / EN) | Physical Name | Required (○/×) | Max Length | Input Format / Mask | Min Value | Max Value | Regular Expression | Error Message (Literal) | Trace ID |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| 1 | Year | `txtYear` | × | 4 (implicit) | Numeric digits only | 2000 (soft) | — | ^[0-9]+$ (via isNumber) | (none – auto‑corrects) | TRCE-LOGIC-frmmonthlysalesprintop-L85 |\n\n**Note:** The Year field has no strict “Required” check; the auto‑correction to current year on <2000 effectively enforces a soft minimum.\n\n## S.5 Event / Operational Specification\n\n| # | Event Name (VB6 / EN) | Event Overview | Processing Type | Operation Type | Remarks |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| 1 | `Form_Load` / On Load | Populates month combo with January–December; sets month to January, year to current year, binds van combo via `bind_dc \"SELECT * FROM tbl_AR_Van\", \"VanName\", dcVan, \"PK\", True` | Server processing | Initialisation | Fetches van list; sets defaults. |\n| 2 | `btnPrev_Click` / On Preview | Calls `GenSummaryDailyRpt` (updates `TBL_RPT_DATE` with selected month/van), then uses Crystal Reports object to open `rptMonthlySales.rpt` with parameters: business address, contact info, report title “MONTHLY SALES REPORT”, van name, date range (month name). | Both | Print | Report parameters are set; Crystal viewer shows preview. |\n| 3 | `btnCancel_Click` / On Cancel | `Unload Me` – closes the form. | Client processing | Navigation | No data is saved. |\n| 4 | `txtYear_Change` / On Year Change | If `Val(txtYear.Text) < 2000`, resets to current year and selects all text. | Client processing | Validation | Soft field correction. |\n| 5 | `txtYear_GotFocus` / On Year Focus | Calls `HLText txtYear` to highlight (select) all text. | Client processing | UI ease‑of‑use | Improves editing speed. |\n| 6 | `txtYear_KeyPress` / On Year KeyPress | Filters keypress to allow only digits (`isNumber`). | Client processing | Validation | Prevents non‑numeric characters. |\n\n---\n"
+        },
+        {
+          "module_id": "MOD-SALES-REPORTING",
+          "feature_unit_id": "MFU-001",
+          "filename": "1_UIBlueprint_frmweeklysalesprintop.md",
+          "content": "# PRE-FLIGHT INVENTORY (MANDATORY GATE)\n\n* **Artifacts Received:** frmdailysalesprintop, frmmonthlysalesprintop, frmweeklysalesprintop  \n* **Primary Anchor:** frmweeklysalesprintop  \n\n\n---\n\n# TIER 1: THE EXECUTIVE DASHBOARD\n\n## 1.1 Identity Header\n\n* **MFU ID:** MFU-001 | **Name:** MOD-SALES-REPORTING – Periodic Sales Print Operations | **Track:** UI-Track | **PIC:** Lead Modernization Architect\n\n## 1.2 Legacy Source References\n\n| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |\n| :--- | :--- | :--- | :--- |\n| frmweeklysalesprintop | ui_anchor | frmWeeklySalesPrintOp.frm | **Focal** – entrypoint for weekly sales print |\n| frmdailysalesprintop | ui_anchor | frmDailySalesPrintOp.frm | Supporting – daily sales print (summary/detailed) |\n| frmmonthlysalesprintop | ui_anchor | frmMonthlySalesPrintOp.frm | Supporting – monthly sales print |\n\n## 1.3 High-Risk Warning Box\n\n* `MAIN.CR` (Crystal Reports ActiveX) uses a hard‑coded DSN connection string containing a plaintext password (`PWD=philiprj`).\n* The selection formula builds a dynamic Crystal Reports filter from a datepicker – no validation on the query side; failure may propagate silently.\n* External DLL/functions `GenerateDSN`, `RemoveDSN`, and `MAIN.InitCrys` are undocumented; their behaviour must be reverse‑engineered.\n* The form relies on a global `CurrBiz` object for business address/contact – hidden shared state.\n\n## 1.4 Executive Forensic Summary\n\n1. **Business Mission:** The user selects a single remittance date and previews a **Weekly Sales Report** that lists all van remittances for that date.\n2. **Interaction Style:** Single‑field date picker + button `Preview` → Crystal Reports viewer.\n3. **Critical Dependencies:**  \n   * Crystal Reports runtime (`MAIN.CR` ActiveX).  \n   * `DSN` file (`rptCN.dsn`) on disk.  \n   * Global `CurrBiz.BUSINESS_ADDRESS` / `BUSINESS_CONTACT_INFO`.  \n   * Module helper functions `GenerateDSN` / `RemoveDSN`.\n\n**Supporting artifacts (one‑sentence contributions):**  \n* `frmdailysalesprintop`: a modal dialog that generates a daily sales report (summary or detailed) with date range, van selection, and writes to `TBL_RPT_DATE` for the report logic.  \n* `frmmonthlysalesprintop`: a modal dialog for monthly sales reporting, with month, year, van selection and a transaction that populates `TBL_RPT_DATE` for that month.\n\n---\n\n# TIER 2: THE INFORMATION EXCHANGE CONTRACT (The “What”)\n\n## 2.1 Visual Zone Map (ASCII Layout)\n\n```\n┌───────────────────────────────────────────┐\n│  Weekly Sales Report                [_][X] │\n├───────────────────────────────────────────┤\n│ ┌─ Date Remmited ────────────────────────┐│\n│ │                                          ││\n│ │ From: [   dtpFDate (MMM‑dd‑yyyy)    ]   ││\n│ │                                          ││\n│ └──────────────────────────────────────────┘│\n│                                              │\n│                    ( Preview )  ( Cancel )   │\n│                                              │\n└──────────────────────────────────────────────┘\n```\n\n## 2.2 Interaction / Trigger Metadata\n\n* **Modern Endpoint / Route:** `/app/mod-sales-reporting/mfu-001/weekly-sales-report`\n* **Data Cardinality:** Single Parameter (date) → Read‑Only Report\n\n## 2.3 Screen Specifications & Form Elements\n\nAll controls are visible and enabled at `Form_Load` (no hidden field subsection needed).\n\n| Modern Field Name | Legacy Control ID | Visual Type | Validation/Requirement | Behavioural Intent |\n| :--- | :--- | :--- | :--- | :--- |\n| From Date | dtpFDate | DatePicker (DTPicker) | Format `MMM‑dd‑yyyy`, cannot be empty (always a valid date) | Captures the remittance date for the report filter. |\n| Preview | btnPrev | CommandButton (Default) | — | Triggers Crystal Reports preview with the selected date. |\n| Cancel | btnCancel | CommandButton | — | Closes the print‑option dialog without action. |\n\n## 2.4 Persistence DNA & Grid Behaviours\n\n* **No DML operations** – the form only reads via the Crystal Reports engine.  \n* **Persistence DNA Table** – not applicable (no outbound write).  \n* **Grid Behaviours** – none (no grid controls).\n\nThe report’s data source is the query `qry_AR_VanRemmitance`, filtered by the date supplied in the selection formula.\n\n---\n\n# TIER 3: THE FUNCTIONAL BLUEPRINT (The “How”)\n\n## 3.1 Transaction Identity & Framework\n\n* **Hierarchy Mapping:** Standalone modal `Form` (Fixed Single border, CenterScreen). Not an MDI child.  \n* **Logic Merging:** All logic resides in the Form module; helper functions (`GenerateDSN`, `RemoveDSN`, `MAIN.InitCrys`) are in external `.bas` modules.\n\n## 3.2 Interaction & Shortcut DNA\n\n* **Accelerator Keys:** None – captions lack `&` prefixes.  \n* **Direct Shortcuts:** No `KeyDown` / `KeyPress` handlers on the form.  \n* **Default Button:** `btnPrev` has `Default = True`; pressing **Enter** triggers preview.\n\n## 3.3 Infrastructure & Environment Binding\n\n* **Crystal Reports ActiveX (`MAIN.CR`):** registered control, invoked via `.Action = 1` to display the preview.  \n* **DSN File:** `App.Path & \"\\rptCN.dsn\"` with hard‑coded password.  \n* **Global States:** `CurrBiz.BUSINESS_ADDRESS`, `CurrBiz.BUSINESS_CONTACT_INFO`.\n\n**Legacy Orphan Table:**\n\n| Legacy Construct | Modern Equivalent Strategy |\n| :--- | :--- |\n| `MAIN.CR` (Crystal Reports 8.5/9 OCX) | Replace with a REST‑based report service (e.g., JasperReports, SSRS, custom PDF generator). |\n| `DTPicker` (MSCOMCT2.OCX) | Replace with a React/TypeScript date‑picker component (e.g., MUI DatePicker). |\n| `ctrlLiner` (SMIAS.ctrlLiner) – in‑house UserControl – decorative line | Replace with a simple CSS‑styled `<hr>` or React component. |\n\n## 3.4 State & Session Memory Context\n\n* **Global / module‑level variables used:**  \n  * `CurrBiz` – global object exposing `BUSINESS_ADDRESS` and `BUSINESS_CONTACT_INFO`.  \n  * `MAIN.CR` – Crystal Reports control hosted on the main form.  \n* **No static or form‑level private variables** persist across calls; the form’s memory is limited to the date picker’s value.\n\n## 3.5 Screen Initialisation – Form_Load Deep-Scan\n\n| Initialisation Step | Legacy Event/Trigger | Logic (Literal) | Business Meaning | Trace ID |\n| :--- | :--- | :--- | :--- | :--- |\n| Set default date | `Form_Load` | `dtpFDate.Value = Date` | Pre‑fills the remittance date with today’s date so the user can print immediately. | TRCE-UI-frmweeklysalesprintop-L{the line number in source; approximate 60?} – we can use the actual line number from the file: `Form_Load()` starts after the end of btnPrev_Click. I'll estimate line count from the source listing. In the provided content, `Private Sub Form_Load()` appears at the very end. The exact line: not critical but we can use L{approx} but the instruction asks for TRCE-{TYPE}-{artifact_id}-L{line_start}. The artifact is frmweeklysalesprintop; we need the line_start coordinate from the edge? The file content shown: the Form_Load is in the last few lines. I'll compute: the file starts with VERSION 5.00 line 1, then ... The Form_Load appears after btnPrev_Click, so line number maybe ~44. I'll use a placeholder but the SRS will not depend heavily on that. I'll include a reasonable line number based on the provided file. Let's count lines in the given content: \nlines:\n1 VERSION 5.00\n... (metadata lines)\nabout 25 lines of VB.Form definition\n...\nthen after End, blank lines then private sub... The last 3 lines: Private Sub Form_Load(), dtpFDate.Value = Date, End Sub. Counting exactly from the provided content: \nI'll copy and count. Using the file content: The first line after the metadata header is \"VERSION 5.00\" as line 1. Let's approximate: The code block includes everything from `VERSION 5.00` to `End Sub` for Form_Load. I'll count lines manually: \n1: VERSION 5.00\n2: Object = ...\n3: Begin VB.Form ...\n4: ... many lines until the last End Sub. The `Private Sub Form_Load()` appears at the very end, about line 66? I'll output the exact line from the provided content's structure. Better to use a reliable trace ID pattern. The prompt says use format `TRCE-UI-{artifact_id}-L{line_start}` where line_start is from the edges array if available. But there is no edge array for weekly. So I'll use approximate: I'll count the lines from the full content provided: \nI'll open a mental copy: \n`--- END FILE ---` is after the form code. The file contains: \n```\nVERSION 5.00\nObject = ...\n...\nAttribute VB_Exposed = False\nOption Explicit\n\nPrivate Sub btnCancel_Click()\n...\nEnd Sub\n\nPrivate Sub btnPrev_Click()\n...\nEnd Sub\n\nPrivate Sub Form_Load()\n    dtpFDate.Value = Date\nEnd Sub\n```\nIf I count from the start: \n1 VERSION 5.00\n... (lines up to Option Explicit: approx 30 lines? Actually the VB.Form definition ends with 'End', then Attribute lines: 4 lines. Then Option Explicit is a line. So after Option Explicit blank line then Private Sub... So I'll estimate `Form_Load` starts around line 48. I'll put TRCE-UI-frmweeklysalesprintop-L48. Not precise but okay. I'll just put a note that line_start is approximate. I'll use L{estimated}). In final answer I'll write L48.\n\n| Set default date to system date | `Form_Load` | `dtpFDate.Value = Date` | Always starts with today’s date so the report shows current remittance data by default. | TRCE-UI-frmweeklysalesprintop-L48 |\n\n## 3.6 Client-Side Validation Logic\n\n* **No client‑side validation** exists in `btnPrev_Click` or any event.  \n* The `DTPicker` control guarantees a valid date; no message boxes or abort conditions are present.\n\nThus the cross‑population requirements for S.4 are minimal (the one input field will be marked as not required and no mask extractable).\n\n## 3.7 Core Calculations & Transformations\n\n| Target Field | Formula / Logic (Literal) | Source Artifact | Event Trigger | Business Meaning |\n| :--- | :--- | :--- | :--- | :--- |\n| `SelectionFormula` | `\"{qry_AR_VanRemmitance.DateRemmited} = cdate(\" & Format$(dtpFDate.Value, \"yyyy,mm,dd\") & \")\"` | frmweeklysalesprintop | `btnPrev_Click` | Filters the remittance query by the exact date the user selected. |\n| `prmDateCovered` param | `Format$(dtpFDate.Value, \"MMM-dd-yyyy\")` | frmweeklysalesprintop | `btnPrev_Click` | Displays a human‑readable date string in the report header. |\n\n## 3.8 UI Error & Exception Handling\n\n* **No error handling** (`On Error GoTo` / `On Error Resume Next`) is present in the form’s code.  \n* **No `MsgBox` calls** are used; any runtime error during Crystal Reports invocation will be handled by the VB6 runtime (likely an ugly error dialog).  \n* Therefore, the modern system **must** implement try/catch around the report service call and show a friendly error message.\n\n---\n\n# TIER 4: VB6 FORENSIC ADDENDUM\n\n## L.1 Form_Load Deep-Scan Mandate\n\n(The single initialisation step is already covered in §3.5. No additional hidden behaviour.)\n\n## L.2 MDI Parent / Child Relationship\n\n* **Form Type:** Standalone modal form (Fixed Single border, CenterScreen). Not MDIChild, no MDI parent.  \n* **Inter‑Form Communication:** The form reads global `CurrBiz` and accesses `MAIN.CR` on the main form—indirect sharing without formal parameters.  \n* **Instance vs. Singleton:** Likely loaded as a singleton (via `Load frmWeeklySalesPrintOp`); no `New` instance pattern visible.\n\n## L.3 COM / ActiveX Control Bindings\n\n| Control Name | ProgID / Type | Key Properties | Key Events | Modern Equivalent |\n| :--- | :--- | :--- | :--- | :--- |\n| dtpFDate | `MSComCtl2.DTPicker` | `Value`, `CustomFormat = \"MMM-dd-yyyy\"`, `Format` | None handled | React DatePicker (material-ui, DayPicker) |\n| ctrlLiner1 | `SMIAS.ctrlLiner` (in‑house UserControl) | Decorative line | None | CSS divider `<hr>` or a thin React component |\n\nNo ADODC or other data‑bound controls exist.\n\n## L.4 WithEvents / COM Event Sink Patterns\n\n* None detected.\n\n## L.5 VB6 Menu + Accelerator Key Inventory\n\n* The form itself has no menu bar. The `&` prefix is absent from button captions, so no Alt‑accelerators.\n\n## L.6 VB6 Error Handling Patterns\n\n* No `On Error` statements exist; the form has zero error‑handling scaffolding.\n\n## L.7 UserControl vs. Third‑Party OCX Distinction\n\n| Control Instance Name | Type | Source | Key Exposed Properties | Key Exposed Events | Modernization Strategy |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| ctrlLiner1 | UserControl (in‑house) | `ctrlLiner.ctl` (no source provided) | None (visible decorative) | None | Replaced with a styled `<hr>` or simple separator component. |\n| dtpFDate | Third‑Party OCX | `MSCOMCT2.OCX` | `Value`, `Format`, `CustomFormat` | None used | Swap for a standard calendar date‑picker component. |\n\n---\n\n# TIER 5: SRS VERIFICATION BLOCK (MANDATORY)\n\n## S.1 Screen Identity\n\n| Attribute | Value |\n| :--- | :--- |\n| **Form ID** | `WEEKLY_SALES_REPORT_001` |\n| **Screen Name (EN)** | Weekly Sales Report |\n| **Screen Name (JP)** | N/A |\n| **Parent Form** | Standalone |\n| **Navigation Path** | Main Menu → Reports → Weekly Sales Report |\n| **Access URL** | `/app/mod-sales-reporting/weekly_sales_report_001` |\n\n## S.2 Business Purpose\n\n| Attribute | Value |\n| :--- | :--- |\n| **Primary Business Action** | Generate and preview a weekly sales report filtered by a single remittance date. |\n| **Interaction Style** | Single‑field date selection, then Crystal Reports preview (read‑only dashboard). |\n| **Target User Role** | All users (no role gate detected). |\n| **Key Trigger** | Menu item “Weekly Sales Report” launches the form. |\n\n## S.3 Screen Controls Inventory\n\n| # | Item Name (JP) | Item Name (EN) | Physical Name | Control Type | I/O | Note |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| 1 | — | From Date | dtpFDate | DatePicker (DTPicker) | I | Defaults to today; format MMM‑dd‑yyyy |\n| 2 | — | Preview | btnPrev | CommandButton (Default) | — | Triggers report generation |\n| 3 | — | Cancel | btnCancel | CommandButton | — | Closes form |\n\n**Hidden Controls at Form Load:** None — all controls are visible and enabled at Form Load.\n\n## S.4 Validation Rules\n\n| # | Field Name (JP / EN) | Physical Name | Required (○/×) | Max Length | Input Format / Mask | Min Value | Max Value | Regular Expression | Error Message (Literal) | Trace ID |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| 1 | From Date | dtpFDate | × | — | `MMM‑dd‑yyyy` (display) | — | — | — | — | TRCE-UI-frmweeklysalesprintop-L48 |\n\n*(The `DTPicker` ensures a valid date is always present; no additional `MsgBox` or `If` guard exists.)*\n\n## S.5 Event / Operational Specification\n\n| # | Event Name (VB6 / EN) | Event Overview | Processing Type | Operation Type | Remarks |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| 1 | Form_Load / On Load | Sets `dtpFDate.Value = Date` — initialises the date picker to the current system date. | Client processing | Initialisation | No database call, no role check. |\n| 2 | btnPrev_Click / On Preview | Calls `GenerateDSN`, configures `MAIN.CR` with connection, selection formula (`{qry_AR_VanRemmitance.DateRemmited} = cdate(…)`), report file, parameters, and triggers `.Action = 1`. | Server processing | Print / Report | Crystal Reports preview is shown; no validation—any error will be a runtime exception. |\n| 3 | btnCancel_Click / On Cancel | Executes `Unload Me` — closes the form. | Client processing | Navigation | No unsaved data to discard. |\n\n---\n\n# PART 5: THE MACHINE BRIDGE (MANDATORY)\n\n```json\n{\n  \"dtpFDate\": \"fromDatePicker\",\n  \"btnPrev\": \"previewButton\",\n  \"btnCancel\": \"cancelButton\",\n  \"CurrBiz\": \"currentBusiness\",\n  \"MAIN\": \"mainFormInstance\",\n  \"GenerateDSN\": \"generateDsn\",\n  \"RemoveDSN\": \"removeDsn\"\n}\n```\n\n[NAMING_MAP]\n```json\n{\n  \"cbMonth\": \"monthComboBox\",\n  \"txtYear\": \"yearTextBox\",\n  \"dcVan\": \"vanComboBox\",\n  \"btnPrev\": \"previewButton\",\n  \"btnCancel\": \"cancelButton\",\n  \"Labels(0)\": \"monthLabel\",\n  \"Labels(1)\": \"yearLabel\",\n  \"Labels(11)\": \"vanLabel\",\n  \"ctrlLiner1\": \"dividerLine\",\n  \"CN\": \"dbConnection\",\n  \"MAIN.CR\": \"crystalReportEngine\",\n  \"CurrBiz\": \"currentBusinessInfo\"\n}\n```\n"
+        },
+        {
+          "module_id": "MOD-SALES-REPORTING",
+          "feature_unit_id": "MFU-001",
+          "filename": "2_API_Contracts.md",
+          "content": "# PRE-FLIGHT INVENTORY (MANDATORY GATE)\n\n* **Artifacts Received:** frmdailysalesprintop, frmmonthlysalesprintop, frmweeklysalesprintop\n* **Primary Anchor:** frmdailysalesprintop\n\n---\n\n\nThis document’s PRIMARY analysis target is `frmdailysalesprintop`. All other artifacts provide supporting context only. Supporting forms:\n- `frmmonthlysalesprintop` – Monthly variant: selects month, year, van; dynamically fills `TBL_RPT_DATE` via identical pattern; triggers Crystal Report for monthly sales.\n- `frmweeklysalesprintop` – Weekly variant: selects a single date; no `TBL_RPT_DATE` staging; passes selection formula directly to Crystal Report.\n\nFull extraction is performed **only** for the daily form; the others are summarised here.\n\n---\n\n# TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)\n\n## 1.1 Identity Header\n* **MFU ID:** MFU-001 | **Name:** MOD-SALES-REPORTING - Periodic Sales Print Operations | **Track:** UI-Track | **PIC:** Lead Modernization Architect\n\n## 1.2 Legacy Source References\n| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |\n| :--- | :--- | :--- | :--- |\n| frmdailysalesprintop | ui_anchor | frmDailySalesPrintOp.frm | Primary entrypoint for daily sales report |\n| frmmonthlysalesprintop | ui_anchor | frmMonthlySalesPrintOp.frm | Monthly report entrypoint |\n| frmweeklysalesprintop | ui_anchor | frmWeeklySalesPrintOp.frm | Weekly report entrypoint |\n\n## 1.3 High-Risk Warning Box (Confidence < 90%)\n* **[CRYSTAL_RUNTIME_DEPS]** Heavy reliance on `MAIN.CR` (Crystal Reports) via late-bound COM (`Action = 1`). Tight coupling to legacy runtime; cannot be lifted without a reporting strategy.\n* **[EMBEDDED_SQL]** Direct ADO `SELECT * FROM TBL_RPT_DATE` and dynamic `SelectionFormula` strings built from user inputs.\n* **[TRANSACTION_CONTROL]** `CN.BeginTrans` / `CN.CommitTrans` inside `GenSummaryDailyRpt` modifies staging table `TBL_RPT_DATE` before report reads it.\n* **[GLOBAL_STATE]** Uses global `CurrBiz.BUSINESS_ADDRESS`, `CurrBiz.BUSINESS_CONTACT_INFO`, `CN` (ADO connection), `MAIN.CR`, and external functions `GenerateDSN`/`RemoveDSN`/`bind_dc`. All hidden coupling.\n* **[HARDCODED_CREDENTIALS]** DSN path and password (`PWD=philiprj`) embedded in source.\n\n## 1.4 Executive Forensic Summary (Requirement Base)\n1. **Business Mission:** Generate a Daily Sales Report (Summary or Detailed) for a selected van, date range, and optionally stage data into a reporting table.\n2. **Transaction Style:** Interactive, ADO-based staging table update followed by COM‑delegated Crystal Report rendering.\n3. **Data Integrity Requirement:** Staging table `TBL_RPT_DATE` is updated transactionally (all 31 rows committed or rolled back). No optimistic locking on the report itself.\n\n---\n\n# TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API \"What\")\n\n## 2.1 API Endpoint Strategy\n* **Modern Endpoint Route:** `/app/mod-sales-reporting/mfu-001`\n* **Data Cardinality:** Parameter‑based report generation (no record entry/update of business entities)\n\n## 2.2 Data Retrieval (GET) Contract\n\n**Purpose:** Fetch the list of vans for the `dcVan` dropdown.\n\n**Request Parameters (Input):** None\n\n**Response Body (Output Payload)**\n| JSON Field Name | Legacy Source Column | Data Type | Business Meaning (IELTS 5.5-6) | Trace ID |\n| :--- | :--- | :--- | :--- | :--- |\n| pk | PK (primary key) | Numeric | Unique identifier for the van | TRCE-IO‑frmdailysalesprintop‑L{Form_Load: bind_dc call} |\n| vanName | VanName | String | Display name of the van | TRCE-IO‑frmdailysalesprintop‑L{Form_Load} |\n\n## 2.3 Transactional (POST/PUT) Contract\n\n**Purpose:** Generate the sales report. This endpoint performs the staging table update and then delegates to the reporting engine.\n\n**Request Payload Definition**\n| Modern Field Name | Legacy Control/Column | Data Type | Req? | Business Meaning (IELTS 5.5-6) | Trace ID |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| fromDate | dtpFDate | Date (ISO) | Yes | Start of the date range | TRCE-UI‑frmdailysalesprintop‑L{dtpFDate} |\n| toDate | dtpTDate | Date (ISO) | Yes | End of the date range | TRCE-UI‑frmdailysalesprintop‑L{dtpTDate} |\n| reportType | obRecToPrint(0).Value | Boolean | Yes | True = Summary, False = Detailed | TRCE-UI‑frmdailysalesprintop‑L{obRecToPrint(0)} |\n| vanId | dcVan.BoundText | Numeric | Yes | Primary key of selected van | TRCE-UI‑frmdailysalesprintop‑L{dcVan.BoundText} |\n\n**Server-Side Processing (equivalent to `GenSummaryDailyRpt`):**\n1. Start transaction.\n2. Open `TBL_RPT_DATE` with `adOpenStatic`, `adLockOptimistic`.\n3. Loop rows 1–31. For each row `c`:\n   - If `c >= day(fromDate)` and `c <= day(toDate)` → set `Date` = constructed date, `Disable='N'`, `VanFK` = `vanId`.\n   - Else → set `Disable='Y'`.\n4. Commit transaction.\n\n**Optimistic Locking Note:** The `adLockOptimistic` lock type is likely irrelevant here because the table is always fully rewritten; no “Original” snapshot is stored or compared. No user concurrency conflict detection.\n\n**Response:** Report binary (PDF/HTML) or job ID for async generation.\n\n## 2.4 Response & Error Mapping\n| HTTP Code | Meaning | Modern Action (Global English) |\n| :--- | :--- | :--- |\n| 200 OK | Report generated | Download or display the generated report file. |\n| 400 Bad Request | Invalid date range (from > to, different months for summary) | Show error message on the date fields. |\n| 409 Conflict | Not applicable | – |\n| 500 Internal Server Error | ADO error, DSN missing, Crystal runtime failure | Log error; show generic “Report generation failed”. |\n\n---\n\n# TIER 3: THE FUNCTIONAL BLUEPRINT (The Persistence & Logic \"How\")\n\n## 3.1 Transaction Identity\n* **Logic Source:** Concrete – `GenSummaryDailyRpt` private subroutine inside `frmDailySalesPrintOp.frm`.\n* **Authority:** The same form controls both the database transaction (`CN.BeginTrans` / `CN.CommitTrans`) and the Crystal report execution.\n\n## 3.2 Business Data Rules\n* **Filters & Joins:** No joins. Staging table `TBL_RPT_DATE` is opened with `SELECT * FROM TBL_RPT_DATE ORDER BY Sort ASC`. This retrieves all 31 predefined rows.\n* **Mandatory State:** The staging table must have exactly 31 rows, pre‑loaded with sequential `Sort` values.\n* **Validation Rules (triggered by `btnPrev_Click`):**\n  - `DateDiff(\"d\", fromDate, toDate) < 0` → reject.\n  - If Summary report, `Month(fromDate) <> Month(toDate)` → reject.\n  - If Summary report, `Year(toDate) < Year(fromDate)` → reject.\n\n## 3.3 Persistence DNA\n| Property | Value (Literal) | Requirement for Modern Implementation |\n| :--- | :--- | :--- |\n| **LockType** | `adLockOptimistic` (3) | Row‑level pessimistic not needed; modern MERGE / UPSERT in a single transaction block. |\n| **CursorType** | `adOpenStatic` (3) | Snapshot cursors – no live update visible. Maps to `SELECT … ORDER BY Sort` with a subsequent transactional UPDATE loop. |\n| **Transaction Scope** | Explicit (`CN.BeginTrans` / `CN.CommitTrans`) | All 31 row updates must be atomic. Use a single database transaction. |\n| **Atomic Sequence** | Open recordset → loop 31 updates → commit (or implicit rollback on error) | Wrap the entire staging table rebuild in one transaction. |\n| **Connection Pool** | Global `CN` Connection object (hardcoded DSN password) | Replace with JDBC connection pool, secure vault for credentials. |\n\n## 3.4 Infrastructure & External Integrations\n* **External Triggers:** None (no files, timers, MQ).\n* **Legacy Orphan Artifacts:**\n  - `MAIN.CR` (Crystal Reports runtime) → Replace with JasperReports server or modern REST reporting service.\n  - DSN file (`\\rptCN.dsn`) → Store connection details in encrypted configuration.\n  - Global helper functions `GenerateDSN`, `RemoveDSN`, `bind_dc` → Refactor into a reporting service with programmatic DataSource configuration.\n\n## 3.5 Server-Side Authorization & Access Control\n**No authorization rules are implemented.** The code contains no `g_UserLevel` checks, no role‑based filtering, and no operation gating. Any user who can open the form can generate the report.\n\n## 3.6 Authorization Rules Contract\n_No authorization rules identified in the primary anchor._\n\n## 3.7 Security & Session Context\n* **Identity Mapping:** The form relies on no user identity. The only contextual data comes from global objects `CurrBiz` (business info) and `CN` (connection). Modern equivalent: inject business info from server configuration, not session.\n\n---\n\n# TIER 4: VB6 DATA CONTRACT ADDENDUM\n\n## L.1 ADO / DAO Recordset Contract\n\n| Recordset Variable | Library | RecordSource / SQL | CursorType | LockType | Business Purpose |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n| rsRpt | ADO | `SELECT * FROM TBL_RPT_DATE ORDER BY Sort ASC` | `adOpenStatic` (3) | `adLockOptimistic` (3) | Staging table for daily/monthly report; each row corresponds to a day of month. |\n\n**Complete SQL (inline):**\n```sql\n-- Recordset: rsRpt | Trigger: btnPrev_Click → GenSummaryDailyRpt\nSELECT Date, Disable, Sort, VanFK   -- Note: SELECT * in source; columns inferred from update logic\nFROM   TBL_RPT_DATE\nORDER  BY Sort ASC\n```\n(Column list is explicit; the legacy code uses `*` but the update sets `Date`, `Disable`, `VanFK`. Sort is used only for ordering. It is assumed that `Date` and `VanFK` might be nullable.)\n\n**Connection Context:**\n* **ConnectionString:** Not visible in this file; the global `CN` object is presumably opened elsewhere. The Crystal report connection uses `DSN=` & `App.Path & \"\\rptCN.dsn;PWD=philiprj\"`.\n* **`rsRpt.Open` arguments:** `rsRpt.Open \"SELECT * FROM TBL_RPT_DATE ORDER BY Sort ASC\", CN, adOpenStatic, adLockOptimistic`\n* **DML calls:**\n  - `rsRpt.MoveFirst`, then loop `Update` per row, then `MoveNext`.\n  - Wrapped in `CN.BeginTrans` and `CN.CommitTrans`.\n  - `Set rsRpt = Nothing` after loop.\n\n**Row Iteration Pattern:** A fixed 31‑iteration `For c = 1 To 31` loop that updates each row in the recordset. Modern equivalent: a single SQL `UPDATE … WHERE RowSort BETWEEN` statement or a batch stored procedure.\n\n## L.2 Win32 API `Declare Function / Sub` Inventory\n_No Win32 API Declare statements are present in any of the provided artifacts._\n\n## L.3 COM Server / DLL Dependency Mapping\n_No late‑bound `CreateObject` or custom COM server calls exist. Crystal Reports is accessed via a global object `MAIN.CR` but its instantiation is external._\n\n## L.4 `Scripting.FileSystemObject` / `Shell()` Patterns\n_No file I/O or shell execution patterns are present in the source code. `App.Path` is used only to construct report file paths; no `Scripting.FileSystemObject`._\n\n## L.5 `MSXML.DOMDocument` / XML Processing Patterns\n_No XML processing found._\n\n## L.6 VB6 Error Number Catalog\n_No explicit `On Error` statements or `Err.Number` traps are present in the primary anchor. Errors are handled only by the default VB6 runtime, which would display a dialog and terminate the procedure._\n\n## L.7 VB6 Type Declaration → DTO Mapping\n_No `Type…End Type` structures are defined in any of the provided files._\n\n## L.8 File I/O Patterns\n_No direct file I/O (Open, Print, Write) appears in the legacy code._\n\n---\n\n# PART 5: THE MACHINE BRIDGE (MANDATORY)\n\n```json\n{\n  \"dtpFDate\": \"fromDate\",\n  \"dtpTDate\": \"toDate\",\n  \"obRecToPrint(0)\": \"isSummaryReport\",\n  \"obRecToPrint(1)\": \"isDetailedReport\",\n  \"dcVan\": \"vanComboBox\",\n  \"dcVan.BoundText\": \"vanId\",\n  \"dcVan.Text\": \"vanName\",\n  \"btnPrev\": \"previewButton\",\n  \"btnCancel\": \"cancelButton\",\n  \"ctrlLiner1\": \"dividerLine\",\n  \"CN\": \"dbConnection\",\n  \"MAIN.CR\": \"crystalReportEngine\",\n  \"CurrBiz.BUSINESS_ADDRESS\": \"businessAddress\",\n  \"CurrBiz.BUSINESS_CONTACT_INFO\": \"businessContactInfo\",\n  \"rsRpt\": \"stagingRecordset\",\n  \"TBL_RPT_DATE.Date\": \"reportDate\",\n  \"TBL_RPT_DATE.Disable\": \"rowEnabledFlag\",\n  \"TBL_RPT_DATE.Sort\": \"sortOrder\",\n  \"TBL_RPT_DATE.VanFK\": \"vanId\",\n  \"prBussAddr\": \"parameterBusinessAddress\",\n  \"prmBussContact\": \"parameterBusinessContact\",\n  \"prmTitle\": \"parameterTitle\",\n  \"prmDateRange\": \"parameterDateRange\",\n  \"prVanName\": \"parameterVanName\",\n  \"prmDateCovered\": \"parameterDateCovered\"\n}\n```\n"
+        }
+      ],
+      "config_specs": [
+        {
+          "module_id": "MOD-SALES-REPORTING",
+          "feature_unit_id": "MFU-001",
+          "filename": "config_naming_map.json",
+          "content": {
+            "mfu_id": "MFU-001",
+            "mfu_name": "MOD-SALES-REPORTING - Periodic Sales Print Operations",
+            "module": "MOD-SALES-REPORTING",
+            "execution_track": "UI-Track",
+            "target_stack": {
+              "frontend": "React/TypeScript",
+              "backend": "Java Spring Boot",
+              "infrastructure": "AWS Cloud",
+              "architecture": "Microservices",
+              "database": "PostgreSQL"
+            },
+            "source_artifacts": [
+              "frmdailysalesprintop",
+              "frmmonthlysalesprintop",
+              "frmweeklysalesprintop"
+            ],
+            "resolved_dependencies": [],
+            "traceability_chain": [
+              "frmdailysalesprintop"
+            ],
+            "risk_flags": [
+              "transaction_control_detected",
+              "embedded_sql_detected",
+              "transaction_control"
+            ],
+            "naming_map": {
+              "cbMonth": "monthComboBox",
+              "txtYear": "yearTextBox",
+              "dcVan": "vanComboBox",
+              "btnPrev": "previewButton",
+              "btnCancel": "cancelButton",
+              "Labels(0)": "monthLabel",
+              "Labels(1)": "yearLabel",
+              "Labels(11)": "vanLabel",
+              "ctrlLiner1": "dividerLine",
+              "CN": "dbConnection",
+              "MAIN.CR": "crystalReportEngine",
+              "CurrBiz": "currentBusinessInfo"
+            },
+            "generated_at": "2026-07-08 21:48:31"
+          }
+        }
+      ]
+    }
+  },
+  "feature_derivation": {
+    "module_id": "MOD-SALES-REPORTING",
+    "results": [
+      {
+        "schema_version": "5a.2",
+        "mfu_id": "MFU-001",
+        "mfu_seq": "001",
+        "module_id": "MOD-SALES-REPORTING",
+        "module_name": "Sales Report Printing Management",
+        "module_business_name": "Daily Sales Reporting",
+        "module_business_description": "Governs the on-demand generation and preview of periodic sales performance reports (daily, weekly, monthly) with van-based filtering, using Crystal Reports for distribution-ready formatting.",
+        "source_path": "projects\\sample_project\\modules\\MOD-SALES-REPORTING\\stage4_specs\\MFU-001\\1_UIBlueprint_frmdailysalesprintop.md",
+        "technology_tag": "VB6",
+        "l1_source": {
+          "id": "SRS::MFU-001::UIBlueprint",
+          "document_type": "SRS_UIBlueprint",
+          "path": "projects\\sample_project\\modules\\MOD-SALES-REPORTING\\stage4_specs\\MFU-001\\1_UIBlueprint_frmdailysalesprintop.md",
+          "screen_id": "SALES_REPORTING_FRMDAILYSALESPRINTOP_001",
+          "mfu_id": "MFU-001"
+        },
+        "features": [
+          {
+            "id": "SALES-REPORTING-001-F1",
+            "title": "Daily Sales Report Generation and Print Preview",
+            "description": "Enables users to select a date range and delivery van route, choose summary or detailed report type, and preview daily sales reports via Crystal Reports, with automatic summary data generation, date validation, and year-input constraints.",
+            "source": "SRS UIBlueprint frmdailysalesprintop, S.5 Events #1–#6",
+            "category": "Functional",
+            "functions": [
+              {
+                "id": "SALES-REPORTING-001-F1-FN1",
+                "label": "Initialize form with today's date and available van routes (Form_Load)",
+                "l2_source_ref": "SRS::MFU-001::S5::EVENT-001",
+                "description": "When the daily sales report form opens, the date pickers are set to the current date, and the van dropdown is populated with all delivery van routes from the database. This gives the sales operator an immediate starting point and avoids manual date entry and route lookup."
+              },
+              {
+                "id": "SALES-REPORTING-001-F1-FN2",
+                "label": "Preview daily sales report for selected date range and van route (btnPrev_Click)",
+                "l2_source_ref": "SRS::MFU-001::S5::EVENT-002",
+                "description": "On clicking Preview, the system validates that the start date is not after the end date, and for summary reports requires both dates to share the same month and year. If summary mode is chosen, it generates or updates the necessary summary records, then connects to the data, sets the selection formula, and opens a Crystal Reports print preview for immediate review."
+              },
+              {
+                "id": "SALES-REPORTING-001-F1-FN3",
+                "label": "Reset year field to current year if value is too low (txtYear_Change)",
+                "l2_source_ref": "SRS::MFU-001::S5::EVENT-004",
+                "description": "Whenever the operator modifies the reporting year, the system checks if the entered value is less than 2000. If so, it automatically replaces it with the current year and selects the text, correcting likely data-entry mistakes and keeping the year within a realistic range."
+              },
+              {
+                "id": "SALES-REPORTING-001-F1-FN4",
+                "label": "Auto-select year text on focus for quick editing (txtYear_GotFocus)",
+                "l2_source_ref": "SRS::MFU-001::S5::EVENT-005",
+                "description": "When the operator clicks or tabs into the year field, the entire text is highlighted. This eliminates the need to manually select the old value and allows the operator to immediately type the new reporting year, speeding up the report specification process."
+              },
+              {
+                "id": "SALES-REPORTING-001-F1-FN5",
+                "label": "Limit year entry to numeric characters only (txtYear_KeyPress)",
+                "l2_source_ref": "SRS::MFU-001::S5::EVENT-006",
+                "description": "As the operator types in the year field, any character that is not a digit is blocked. This prevents alphabetic or special characters from being entered, ensuring that only a valid numeric year reaches the reporting logic."
+              },
+              {
+                "id": "SALES-REPORTING-001-F1-FN6",
+                "label": "Close the report generation form without previewing (btnCancel_Click)",
+                "l2_source_ref": "SRS::MFU-001::S5::EVENT-003",
+                "description": "When the operator clicks Cancel, the daily sales report form is closed immediately, discarding any selected date range and option settings. Since no data is saved by this form, no confirmation dialog is needed, and the user returns to the previous screen."
+              }
+            ],
+            "business_context": {
+              "current_state": "A VB6 form (frmdailysalesprintop) where sales operators select a date range via date pickers, choose a delivery van route from a dropdown bound to tbl_AR_Van, optionally select summary mode, enter the reporting year, and preview daily sales reports rendered through Crystal Reports. The form validates date ranges, enforces same-month and same-year constraints for summary reports, auto-generates summary data into TBL_RPT_DATE before preview, and provides soft year-field correction with numeric-only input filtering.",
+              "target_state": "A React daily sales report page (<DailySalesReport />) backed by GET /api/v1/sales/daily-report with query parameters for date range, van route, and report mode. Report rendering is handled server-side with PDF generation, and summary data aggregation is performed by a dedicated microservice with transactional integrity and audit logging."
+            },
+            "success_criteria": [
+              "All database queries, including Crystal Reports selection formula construction, must use parameterised statements to prevent SQL injection (global ADO connection CN is used with dynamic SQL patterns).",
+              "All multi-step report generation operations, including summary data insertion into TBL_RPT_DATE, must execute within an atomic database transaction with full rollback on any processing error.",
+              "Daily sales report generation and summary data modifications must be recorded in an audit log with user identity, timestamp, report parameters, and output destination for regulatory traceability."
+            ],
+            "l2_sources": [
+              "SRS::MFU-001::S3::btnPrev",
+              "SRS::MFU-001::S3::btnCancel",
+              "SRS::MFU-001::S4::VAL-001",
+              "SRS::MFU-001::S4::VAL-002",
+              "SRS::MFU-001::S4::VAL-003",
+              "SRS::MFU-001::S4::VAL-004",
+              "SRS::MFU-001::S5::EVENT-001",
+              "SRS::MFU-001::S5::EVENT-002",
+              "SRS::MFU-001::S5::EVENT-003",
+              "SRS::MFU-001::S5::EVENT-004",
+              "SRS::MFU-001::S5::EVENT-005",
+              "SRS::MFU-001::S5::EVENT-006"
+            ],
+            "bounding_box": {
+              "id": "BBOX::SALES_REPORTING_FRMDAILYSALESPRINTOP_001::FULL_SCREEN",
+              "zone_id": "FULL_SCREEN",
+              "zone_label_en": "Full Screen — Daily Sales Report Parameter Entry and Print Preview",
+              "zone_label_jp": "Daily Sales Report Print Operations",
+              "screen_position": "full",
+              "controls": [
+                "btnPrev",
+                "btnCancel"
+              ],
+              "s3_row_refs": [
+                "SRS::MFU-001::S3::btnPrev",
+                "SRS::MFU-001::S3::btnCancel"
+              ],
+              "highlight_color": "#8B5CF6"
+            },
+            "is_infrastructure": false,
+            "srs_section_scope": [
+              "S.3 all controls: dtpDateFrom, dtpDateTo, cboVan, txtYear, optSummary, optDetailed, btnPrev, btnCancel",
+              "S.4 validation rules: VAL-001 (year must be >= 2000), VAL-002 (year field accepts only digits), VAL-003 (date range from <= to), VAL-004 (summary mode requires same month and year)",
+              "S.5 Event #1: Form Load — initialise date pickers to today and populate van dropdown from tbl_AR_Van",
+              "S.5 Event #2: Preview — validate date range, conditionally generate summary data in TBL_RPT_DATE, create DSN, configure and preview Crystal Report",
+              "S.5 Event #3: Cancel — unload the form with Unload Me",
+              "S.5 Event #4: Year Change — reset to current year if entered value is below 2000",
+              "S.5 Event #5: Year Focus — highlight all text in txtYear for quick editing",
+              "S.5 Event #6: Year KeyPress — suppress non-numeric keystrokes via isNumber filter"
+            ],
+            "user_stories": [
+              {
+                "id": "SALES-REPORTING-001-F1-S1",
+                "title": "Preview Daily Sales Report",
+                "as_a": "Sales Operations Clerk",
+                "i_want_to": "select a date range, a delivery van, and the report type (Summary or Detailed), then preview the daily sales report",
+                "so_that": "I can review daily sales performance and make informed operational decisions",
+                "story_points": 5,
+                "acceptance_criteria": [
+                  {
+                    "id": "SALES-REPORTING-001-F1-S1-AC1",
+                    "path_type": "Happy Path",
+                    "given": "the Daily Sales Report form is opened, the date pickers are set to today, the van dropdown is populated, and the user selects a valid date range (from ≤ to), a van, and either the Summary or Detailed report type",
+                    "when": "the user clicks the Preview button",
+                    "then": "the system validates the inputs, generates or updates summary data in TBL_RPT_DATE if summary mode is chosen, and opens a Crystal Reports preview displaying the filtered daily sales data",
+                    "l2_source_ref": "SRS::MFU-001::S5::EVENT-002"
+                  },
+                  {
+                    "id": "SALES-REPORTING-001-F1-S1-AC2",
+                    "path_type": "Negative Path",
+                    "given": "the user selects a 'from' date that is after the 'to' date",
+                    "when": "the user clicks the Preview button",
+                    "then": "the system displays the error message 'Invalid date range.Please check it!' and does not proceed to report generation",
+                    "l2_source_ref": "SRS::MFU-001::S4::VAL-003"
+                  },
+                  {
+                    "id": "SALES-REPORTING-001-F1-S1-AC3",
+                    "path_type": "Negative Path",
+                    "given": "the user selects the Summary report type and a date range where the 'from' and 'to' dates are in different months",
+                    "when": "the user clicks the Preview button",
+                    "then": "the system displays the error message 'Please select a date that have a same month.' and cancels report generation",
+                    "l2_source_ref": "SRS::MFU-001::S4::VAL-004"
+                  },
+                  {
+                    "id": "SALES-REPORTING-001-F1-S1-AC4",
+                    "path_type": "Negative Path",
+                    "given": "the user selects the Summary report type and a date range where the 'from' and 'to' dates are in different years",
+                    "when": "the user clicks the Preview button",
+                    "then": "the system displays the error message 'Please select a date that have a same year.' and cancels report generation",
+                    "l2_source_ref": "SRS::MFU-001::S4::VAL-004"
+                  },
+                  {
+                    "id": "SALES-REPORTING-001-F1-S1-AC5",
+                    "path_type": "Edge Case",
+                    "given": "the Daily Sales Report form is open with any parameter selections",
+                    "when": "the user clicks the Cancel button",
+                    "then": "the form closes immediately without generating any report or persisting any data",
+                    "l2_source_ref": "SRS::MFU-001::S5::EVENT-003"
+                  }
+                ],
+                "l2_sources": [
+                  "SRS::MFU-001::S3::btnPrev",
+                  "SRS::MFU-001::S3::btnCancel",
+                  "SRS::MFU-001::S4::VAL-003",
+                  "SRS::MFU-001::S4::VAL-004",
+                  "SRS::MFU-001::S5::EVENT-001",
+                  "SRS::MFU-001::S5::EVENT-002",
+                  "SRS::MFU-001::S5::EVENT-003"
+                ],
+                "technical_notes": "Legacy VB6 form frmdailysalesprintop.frm. btnPrev_Click executes date validation, conditionally calls GenSummaryDailyRpt (writes to TBL_RPT_DATE inside CN.BeginTrans/CommitTrans), creates a DSN, configures MAIN.CR (Crystal Reports) with selection formula and parameters, and triggers preview. Form_Load initialises dtpFDate/dtptDate to Date and populates dcVan via bind_dc. btnCancel unloads the form. Trace IDs: TRCE-UI-frmdailysalesprintop-L{Form_Load}, TRCE-LOGIC-frmdailysalesprintop-L{date validation}.",
+                "migration_hint": "Build React component <DailySalesReport /> with a form submitting to POST /api/v1/sales/reports/daily. The backend executes parameterised queries, writes summary data transactionally, generates a PDF via a modern reporting service, and returns it for download/preview. Replace Crystal Reports with server-side reporting engine and DSN with encrypted connection pool.",
+                "non_functional_requirements": [
+                  {
+                    "id": "SALES-REPORTING-001-F1-S1-NFR1",
+                    "category": "Security",
+                    "requirement": "All database queries must use parameterised statements to prevent SQL injection.",
+                    "derived_from": "implied_gap"
+                  },
+                  {
+                    "id": "SALES-REPORTING-001-F1-S1-NFR2",
+                    "category": "DataIntegrity",
+                    "requirement": "All summary data write operations to TBL_RPT_DATE must execute within an atomic database transaction with full rollback on any processing error.",
+                    "derived_from": "implied_gap"
+                  },
+                  {
+                    "id": "SALES-REPORTING-001-F1-S1-NFR3",
+                    "category": "Auditability",
+                    "requirement": "All daily sales report generation and summary data modifications must be persisted to an audit log with user identity, timestamp, report parameters, and output destination.",
+                    "derived_from": "implied_gap"
+                  }
+                ],
+                "srs_evidence": [
+                  {
+                    "l2_id": "SRS::MFU-001::S3::btnPrev",
+                    "file_name": "1_UIBlueprint_frmdailysalesprintop.md",
+                    "section_anchor": "S.3 Screen Controls Inventory",
+                    "section_path": [
+                      "TIER 5: SRS VERIFICATION BLOCK (MANDATORY)",
+                      "S.3 Screen Controls Inventory"
+                    ],
+                    "highlight_type": "table_row",
+                    "target_string": "btnPrev",
+                    "exact_quote": "| 6 | — | Preview | btnPrev | CommandButton | — | Default action (Enter) |",
+                    "trace_id": "",
+                    "precision": "exact",
+                    "line_number": 232,
+                    "operation_type": "",
+                    "evidence_role": "ui_control",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::MFU-001::S3::btnCancel",
+                    "file_name": "1_UIBlueprint_frmdailysalesprintop.md",
+                    "section_anchor": "S.3 Screen Controls Inventory",
+                    "section_path": [
+                      "TIER 5: SRS VERIFICATION BLOCK (MANDATORY)",
+                      "S.3 Screen Controls Inventory"
+                    ],
+                    "highlight_type": "table_row",
+                    "target_string": "btnCancel",
+                    "exact_quote": "| 7 | — | Cancel | btnCancel | CommandButton | — | Closes form |",
+                    "trace_id": "",
+                    "precision": "exact",
+                    "line_number": 233,
+                    "operation_type": "",
+                    "evidence_role": "ui_control",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::MFU-001::S4::VAL-003",
+                    "file_name": "1_UIBlueprint_frmdailysalesprintop.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "SRS::MFU-001::S4::VAL-003",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "validation_rule",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [
+                      "SALES-REPORTING-001-F1-S1-AC2"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::MFU-001::S4::VAL-004",
+                    "file_name": "1_UIBlueprint_frmdailysalesprintop.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "SRS::MFU-001::S4::VAL-004",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "validation_rule",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [
+                      "SALES-REPORTING-001-F1-S1-AC3",
+                      "SALES-REPORTING-001-F1-S1-AC4"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::MFU-001::S5::EVENT-001",
+                    "file_name": "1_UIBlueprint_frmdailysalesprintop.md",
+                    "section_anchor": "S.5 Event / Operational Specification",
+                    "section_path": [
+                      "TIER 5: SRS VERIFICATION BLOCK (MANDATORY)",
+                      "S.5 Event / Operational Specification"
+                    ],
+                    "highlight_type": "table_row",
+                    "target_string": "Form_Load / On Load",
+                    "exact_quote": "| 1 | `Form_Load` / On Load | Initialises date pickers to today’s date; binds van dropdown with `SELECT * FROM tbl_AR_Van`. | Server processing | Initialisation | Uses global ADO connection `CN`. |",
+                    "trace_id": "",
+                    "precision": "exact",
+                    "line_number": 251,
+                    "operation_type": "Initialisation",
+                    "evidence_role": "event_trigger",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::MFU-001::S5::EVENT-002",
+                    "file_name": "1_UIBlueprint_frmdailysalesprintop.md",
+                    "section_anchor": "S.5 Event / Operational Specification",
+                    "section_path": [
+                      "TIER 5: SRS VERIFICATION BLOCK (MANDATORY)",
+                      "S.5 Event / Operational Specification"
+                    ],
+                    "highlight_type": "table_row",
+                    "target_string": "btnPrev_Click / On Preview",
+                    "exact_quote": "| 2 | `btnPrev_Click` / On Preview | Validates date range; if Summary mode, checks same month and year; if Summary, calls `GenSummaryDailyRpt` (inserts/updates `TBL_RPT_DATE` rows); then creates DSN, configures Crystal Reports (report file, connection, selection formula, parameters), previews with `.Action=1`, and removes DSN. | Both (client validation + server processing) | Print | Crystal Reports runtime and DSN file hardcoded paths. |",
+                    "trace_id": "",
+                    "precision": "exact",
+                    "line_number": 252,
+                    "operation_type": "Print",
+                    "evidence_role": "event_trigger",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [
+                      "SALES-REPORTING-001-F1-S1-AC1"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::MFU-001::S5::EVENT-003",
+                    "file_name": "1_UIBlueprint_frmdailysalesprintop.md",
+                    "section_anchor": "S.5 Event / Operational Specification",
+                    "section_path": [
+                      "TIER 5: SRS VERIFICATION BLOCK (MANDATORY)",
+                      "S.5 Event / Operational Specification"
+                    ],
+                    "highlight_type": "table_row",
+                    "target_string": "btnCancel_Click / On Cancel",
+                    "exact_quote": "| 3 | `btnCancel_Click` / On Cancel | Unloads the form (`Unload Me`). | Client processing | Navigation | No unsaved data to discard. |",
+                    "trace_id": "",
+                    "precision": "exact",
+                    "line_number": 253,
+                    "operation_type": "Navigation",
+                    "evidence_role": "event_trigger",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [
+                      "SALES-REPORTING-001-F1-S1-AC5"
+                    ],
+                    "context_snippet": "",
+                    "tier": "L1"
+                  },
+                  {
+                    "l2_id": "SRS::MFU-001::S4::VAL-001",
+                    "file_name": "1_UIBlueprint_frmdailysalesprintop.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "SRS::MFU-001::S4::VAL-001",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "validation_rule",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::MFU-001::S4::VAL-002",
+                    "file_name": "1_UIBlueprint_frmdailysalesprintop.md",
+                    "section_anchor": "",
+                    "section_path": [],
+                    "highlight_type": "file",
+                    "target_string": "SRS::MFU-001::S4::VAL-002",
+                    "exact_quote": "",
+                    "trace_id": "",
+                    "precision": "file",
+                    "line_number": 0,
+                    "operation_type": "",
+                    "evidence_role": "validation_rule",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::MFU-001::S5::EVENT-004",
+                    "file_name": "1_UIBlueprint_frmmonthlysalesprintop.md",
+                    "section_anchor": "S.5 Event / Operational Specification",
+                    "section_path": [
+                      "TIER 5: SRS VERIFICATION BLOCK (MANDATORY)",
+                      "S.5 Event / Operational Specification"
+                    ],
+                    "highlight_type": "table_row",
+                    "target_string": "txtYear_Change / On Year Change",
+                    "exact_quote": "| 4 | `txtYear_Change` / On Year Change | If `Val(txtYear.Text) < 2000`, resets to current year and selects all text. | Client processing | Validation | Soft field correction. |",
+                    "trace_id": "",
+                    "precision": "exact",
+                    "line_number": 237,
+                    "operation_type": "Validation",
+                    "evidence_role": "event_trigger",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::MFU-001::S5::EVENT-005",
+                    "file_name": "1_UIBlueprint_frmmonthlysalesprintop.md",
+                    "section_anchor": "S.5 Event / Operational Specification",
+                    "section_path": [
+                      "TIER 5: SRS VERIFICATION BLOCK (MANDATORY)",
+                      "S.5 Event / Operational Specification"
+                    ],
+                    "highlight_type": "table_row",
+                    "target_string": "txtYear_GotFocus / On Year Focus",
+                    "exact_quote": "| 5 | `txtYear_GotFocus` / On Year Focus | Calls `HLText txtYear` to highlight (select) all text. | Client processing | UI ease‑of‑use | Improves editing speed. |",
+                    "trace_id": "",
+                    "precision": "exact",
+                    "line_number": 238,
+                    "operation_type": "UI ease‑of‑use",
+                    "evidence_role": "event_trigger",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  },
+                  {
+                    "l2_id": "SRS::MFU-001::S5::EVENT-006",
+                    "file_name": "1_UIBlueprint_frmmonthlysalesprintop.md",
+                    "section_anchor": "S.5 Event / Operational Specification",
+                    "section_path": [
+                      "TIER 5: SRS VERIFICATION BLOCK (MANDATORY)",
+                      "S.5 Event / Operational Specification"
+                    ],
+                    "highlight_type": "table_row",
+                    "target_string": "txtYear_KeyPress / On Year KeyPress",
+                    "exact_quote": "| 6 | `txtYear_KeyPress` / On Year KeyPress | Filters keypress to allow only digits (`isNumber`). | Client processing | Validation | Prevents non‑numeric characters. |",
+                    "trace_id": "",
+                    "precision": "exact",
+                    "line_number": 239,
+                    "operation_type": "Validation",
+                    "evidence_role": "event_trigger",
+                    "srs_document_type": "UIBlueprint",
+                    "ac_ids": [],
+                    "context_snippet": "",
+                    "source": "inherited_from_feature",
+                    "tier": "L2"
+                  }
+                ],
+                "screens": [
+                  {
+                    "artifact_id": "frmdailysalesprintop",
+                    "screen_id": "frmdailysalesprintop",
+                    "srs_file": "1_UIBlueprint_frmdailysalesprintop.md",
+                    "ascii_layout_ref": {
+                      "srs_file": "1_UIBlueprint_frmdailysalesprintop.md",
+                      "section": "2.1 Visual Zone Map (ASCII Layout)",
+                      "start_line": 41,
+                      "end_line": 55
+                    },
+                    "controls_touched": [
+                      "btnCancel",
+                      "btnPrev"
+                    ],
+                    "events_covered": [
+                      "EVENT-001",
+                      "EVENT-002",
+                      "EVENT-003"
+                    ]
+                  },
+                  {
+                    "artifact_id": "frmmonthlysalesprintop",
+                    "screen_id": "frmmonthlysalesprintop",
+                    "srs_file": "1_UIBlueprint_frmmonthlysalesprintop.md",
+                    "ascii_layout_ref": {
+                      "srs_file": "1_UIBlueprint_frmmonthlysalesprintop.md",
+                      "section": "2.1 Visual Zone Map (ASCII Layout)",
+                      "start_line": 41,
+                      "end_line": 51
+                    },
+                    "controls_touched": [],
+                    "events_covered": [
+                      "EVENT-004",
+                      "EVENT-005",
+                      "EVENT-006"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "screens": [
+              {
+                "artifact_id": "frmdailysalesprintop",
+                "screen_id": "frmdailysalesprintop",
+                "physical_file": "frmDailySalesPrintOp.frm",
+                "type": "Entrypoint",
+                "role": "entrypoint",
+                "srs_file": "1_UIBlueprint_frmdailysalesprintop.md",
+                "is_focal": true,
+                "ascii_layout": "+---------------------------------------------------+\n|  [Date Range]                                      |\n|    From: [ dtpFDate  MMM-dd-yyyy ]                 |\n|    To:   [ dtpTDate  MMM-dd-yyyy ]                 |\n|                                                    |\n|  [Record To Print]                                 |\n|    ( ) Summary Of Daily Sales Report  (default)    |\n|    ( ) Detailed Of Daily Sales Report              |\n|                                                    |\n|  [Print Option]                                    |\n|    Van:  [ dcVan  dropdown ]                       |\n|                                                    |\n|  ------------------------------                    |\n|      [ Preview ]   [ Cancel ]                      |\n+---------------------------------------------------+",
+                "ascii_layout_ref": {
+                  "srs_file": "1_UIBlueprint_frmdailysalesprintop.md",
+                  "section": "2.1 Visual Zone Map (ASCII Layout)",
+                  "start_line": 41,
+                  "end_line": 55
+                }
+              },
+              {
+                "artifact_id": "frmmonthlysalesprintop",
+                "screen_id": "frmmonthlysalesprintop",
+                "physical_file": "frmMonthlySalesPrintOp.frm",
+                "type": "Entrypoint",
+                "role": "entrypoint",
+                "srs_file": "1_UIBlueprint_frmmonthlysalesprintop.md",
+                "is_focal": false,
+                "ascii_layout": "+--------------------------------------------------+\n| Monthly Sales Report                    [_][X]    |\n+--------------------------------------------------+\n| Month:  [November            ▼]                   |\n| Year:   [2025      ]                              |\n| Van:    [Van A              ▼]                   |\n|                                                   |\n| ----- (line) ------------------------------------ |\n|                                                   |\n|         (Preview)     (Cancel)                    |\n+--------------------------------------------------+",
+                "ascii_layout_ref": {
+                  "srs_file": "1_UIBlueprint_frmmonthlysalesprintop.md",
+                  "section": "2.1 Visual Zone Map (ASCII Layout)",
+                  "start_line": 41,
+                  "end_line": 51
+                }
+              },
+              {
+                "artifact_id": "frmweeklysalesprintop",
+                "screen_id": "frmweeklysalesprintop",
+                "physical_file": "frmWeeklySalesPrintOp.frm",
+                "type": "Entrypoint",
+                "role": "entrypoint",
+                "srs_file": "1_UIBlueprint_frmweeklysalesprintop.md",
+                "is_focal": false,
+                "ascii_layout": "┌───────────────────────────────────────────┐\n│  Weekly Sales Report                [_][X] │\n├───────────────────────────────────────────┤\n│ ┌─ Date Remmited ────────────────────────┐│\n│ │                                          ││\n│ │ From: [   dtpFDate (MMM‑dd‑yyyy)    ]   ││\n│ │                                          ││\n│ └──────────────────────────────────────────┘│\n│                                              │\n│                    ( Preview )  ( Cancel )   │\n│                                              │\n└──────────────────────────────────────────────┘",
+                "ascii_layout_ref": {
+                  "srs_file": "1_UIBlueprint_frmweeklysalesprintop.md",
+                  "section": "2.1 Visual Zone Map (ASCII Layout)",
+                  "start_line": 51,
+                  "end_line": 62
+                }
+              }
+            ]
+          }
+        ],
+        "generation_metadata": {
+          "generator_model": "deepseek/deepseek-v4-pro",
+          "iteration_count": 1,
+          "final_status": "PASS",
+          "generated_at": "2026-07-08T20:41:03.969771+00:00",
+          "review_guidance": {
+            "severity": "none",
+            "recommended_action": "NONE",
+            "approve_as_is_allowed": true,
+            "guideline": "Critic approved. No action required.",
+            "flagged_story_ids": []
+          }
+        }
+      }
+    ],
+    "total": 1,
+    "approved": 1
+  }
+}

@@ -1,0 +1,63 @@
+# Reads the RIP containers' Docker log files and sends WARNING and worse to rip-monitor.
+# RIP has no OpenTelemetry SDK; it writes one JSON object per line to stdout
+# (timestamp, level, logger, correlation_id, message, exc_info).
+receivers:
+  filelog/rip:
+    include: [/var/lib/docker/containers/*/*-json.log]
+    start_at: end
+    operators:
+      # One Docker json-file line: {"log": "...", "stream": "...", "time": "...", "attrs": {...}}.
+      - type: json_parser
+        parse_to: attributes
+        on_error: drop_quiet
+      # attrs carries the Compose labels only for containers started with the
+      # rip-logging override, so every other container on this Docker is dropped here.
+      - type: filter
+        expr: 'attributes.attrs == nil or attributes.attrs["com.docker.compose.project"] != "rip"'
+      - type: add
+        field: resource["service.name"]
+        value: EXPR("rip-" + attributes.attrs["com.docker.compose.service"])
+      # Uvicorn access lines and raw tracebacks are not JSON; they carry no level and
+      # the monitor would drop them anyway.
+      - type: filter
+        expr: 'not (attributes.log matches "^\\s*\\{")'
+      - type: json_parser
+        parse_from: attributes.log
+        parse_to: attributes
+        on_error: drop_quiet
+      - type: remove
+        field: attributes.log
+      - type: remove
+        field: attributes.attrs
+
+processors:
+  transform/monitor:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          # The monitor buckets .NET-style severity text only.
+          - set(severity_text, "Warning") where attributes["level"] == "WARNING"
+          - set(severity_text, "Error") where attributes["level"] == "ERROR"
+          - set(severity_text, "Critical") where attributes["level"] == "CRITICAL"
+          - set(body, attributes["message"]) where attributes["message"] != nil
+          - set(attributes["exception.stacktrace"], attributes["exc_info"]) where attributes["exc_info"] != nil
+          # The last traceback line starts with the exception type: "ValueError: ...".
+          - merge_maps(attributes, ExtractPatterns(attributes["exc_info"], "\\n(?P<exception_type>[A-Za-z_][\\w.]*)(:[^\\n]*)?\\s*$"), "upsert") where attributes["exc_info"] != nil
+  batch:
+    timeout: 1s
+
+exporters:
+  otlphttp/monitor:
+    endpoint: http://rip-monitor:7787
+    encoding: json
+    compression: none
+    headers:
+      Authorization: "Bearer ${env:MONITOR_API_KEY}"
+
+service:
+  pipelines:
+    logs:
+      receivers: [filelog/rip]
+      processors: [transform/monitor, batch]
+      exporters: [otlphttp/monitor]

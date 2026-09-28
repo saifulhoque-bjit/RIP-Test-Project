@@ -1,0 +1,399 @@
+@import "tailwindcss";
+
+/* =============================================================================
+   Tailwind v4 Theme Configuration
+   ============================================================================= */
+
+@theme {
+  /* Custom Spacing */
+  --spacing-sidebar: 256px;
+  --spacing-sidebar-collapsed: 64px;
+  --spacing-sidebar-collapsed-2xl: 80px;
+  --spacing-header: 56px;
+
+  /* Custom Font Sizes */
+  --font-size-xxxsm: 10px;
+  --font-size-xs: 12px;
+  --font-size-xxsm: 12px;
+  --font-size-xsm: 14px;
+  --font-size-sm: 16px;
+  --font-size-xxmd: 18px;
+  --font-size-xmd: 21px;
+  --font-size-md: 24px;
+  --font-size-display: 80px;
+
+  /* Brand Green Color Scale */
+  --color-brand-green-50: #e6f6f4;
+  --color-brand-green-100: #b0e4dd;
+  --color-brand-green-200: #8ad7cc;
+  --color-brand-green-300: #54c5b5;
+  --color-brand-green-500: #00a991;
+  --color-brand-green-600: #009a84;
+  --color-brand-green-700: #007867;
+
+  /* Brand Blue Color Scale */
+  --color-brand-blue-50: #eaf9fc;
+  --color-brand-blue-500: #2ac2de;
+
+  /* Neutral Color Scale */
+  --color-neutral-200: #909fa7;
+  --color-neutral-300: #5d737f;
+  --color-neutral-400: #3d5866;
+  --color-neutral-500: #0d2e40;
+  --color-neutral-700: #09212d;
+
+  /* Blue Color Scale */
+  --color-blue-100: #c6d7ff;
+  --color-blue-500: #477eff;
+
+  --color-blue-neutral-50: #F5F6F7;
+  --color-blue-neutral-700: #9B9EA0;
+
+  /* Custom Breakpoints */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1366px;
+  --breakpoint-2xl: 1537px;
+
+    /* Semantic aliases so Tailwind generates text-mut / text-sec / text-accent /
+     bg-surface / border-border / shadow-e1 utilities from the existing tokens
+     defined below in :root. */
+  --color-ink: var(--ink);
+  --color-sec: var(--sec);
+  --color-mut: var(--mut);
+  --color-accent: var(--accent);
+  --color-accent-50: var(--accent-50);
+  --color-error: var(--error);
+  --color-error-50: var(--error-50);
+  --color-success: var(--success);
+  --color-success-50: var(--success-50);
+  --color-warn: var(--warn);
+  --color-warn-50: var(--warn-50);
+  --color-info: var(--info);
+  --color-info-50: var(--info-50);
+  --color-ai: var(--ai);
+  --color-ai-50: var(--ai-50);
+  --color-surface: var(--surface);
+  --color-canvas: var(--canvas);
+
+  --shadow-e1: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-e2: 0 4px 12px rgba(16, 24, 40, 0.1);
+}
+
+/* =============================================================================
+   CSS Variables for Theming
+   ============================================================================= */
+
+@layer base {
+  :root {
+    /* RIP Enterprise SPA exact color tokens */
+    --navy-900: #0A1F44;
+    --navy-800: #102A57;
+    --accent: #1A50C8;
+    --accent-600: #1A50C8;
+    --accent-50: #EAF0FC;
+    --canvas: #F6F8FB;
+    --surface: #fff;
+    --border: #E4E8EF;
+    --border-primary: #E4E8EF;
+    --success: #0E9F6E;
+    --success-50: #E7F6EF;
+    --error: #D92D20;
+    --error-50: #FDECEA;
+    --warn: #C77700;
+    --warn-50: #FBF0DD;
+    --warning: #C77700;
+    --warning-50: #FBF0DD;
+    --info: #1570EF;
+    --info-50: #E7F1FE;
+    --ai-draft: #7A4DD6;
+    --ai: #7a4dd6;
+    --ai-50: #F1EBFC;
+    --ink: #0E1726;
+    --border-strong: #CBD2DD;
+    --sec: #475467;
+    --mut: #8A94A6;
+    --color-border-strong: #cbd2dd;
+    --white: #ffffff;
+
+    /* Primary Theme Colors */
+    --foreground: #181d27;
+
+    /* Background Colors */
+    --bg-base: #fdffff;
+    --bg-base2: #f7fcfc;
+    --bg-active: #fafafa;
+
+    /* Text Colors */
+    --text-primary: #181d27;
+    --text-secondary: #414651;
+    --text-tertiary: #535862;
+    --text-quaternary: #717680;
+    --text-warning: #ff8f0f;
+
+    /* Semantic Colors for shorthand usage */
+    --color-white: #ffffff;
+
+    /* Transitions */
+    --transition-fast: 150ms ease;
+    --transition-base: 250ms ease;
+    --transition-button: 200ms linear;
+  }
+
+  * {
+    @apply border-[var(--border-primary)];
+  }
+
+  body {
+    @apply bg-[var(--bg-base)] text-[var(--foreground)];
+    font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-size: 14px;
+  }
+
+  img {
+    @apply max-w-full h-auto;
+  }
+
+  button {
+    @apply cursor-pointer;
+  }
+
+  input,
+  textarea,
+  select {
+    @apply outline-none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+}
+
+/* =============================================================================
+   Custom Utility Classes
+   ============================================================================= */
+
+@layer utilities {
+  /* Flex Utilities */
+  .flex-center {
+    @apply flex items-center justify-center;
+  }
+
+  .flex-between {
+    @apply flex items-center justify-between;
+  }
+
+  /* Text Truncate */
+  .truncate-text {
+    @apply overflow-hidden whitespace-nowrap text-ellipsis;
+  }
+
+  /* Custom Scrollbar Styling */
+  .scrollbar-custom {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+  }
+
+  .scrollbar-custom::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .scrollbar-custom::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 4px;
+  }
+
+  .scrollbar-custom::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+  }
+
+  .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.15);
+  }
+
+  .scrollbar-custom-slim {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.12) transparent;
+  }
+
+  .scrollbar-custom-slim::-webkit-scrollbar {
+    width: 2px;
+    height: 2px;
+  }
+
+  .scrollbar-custom-slim::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 4px;
+  }
+
+  .scrollbar-custom-slim::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.12);
+    border-radius: 4px;
+  }
+
+  .scrollbar-custom-slim::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.18);
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ai-processing-border {
+    border-radius: 16px !important;
+    border: 1px solid transparent !important;
+    background:
+      linear-gradient(#fff, #fff) padding-box,
+      conic-gradient(
+        from 421.95deg at 50% 50%,
+        #ff832a 0deg,
+        #ffb42a 91.09deg,
+        #477eff 180.95deg,
+        #00a991 270.85deg,
+        #ff832a 360deg
+      ) border-box;
+  }
+
+  /* Margin Left Sidebar */
+  .ml-sidebar {
+    margin-left: 256px;
+  }
+}
+
+/* =============================================================================
+   Component Styles
+   ============================================================================= */
+
+@layer components {
+  /* Focus Ring */
+  .focus-ring {
+    @apply outline-offset-2;
+  }
+
+  /* Incremental change-review badges (module/feature/user-story tree) */
+  .v3-cbadge {
+    font-size: 9.5px;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .v3-cbadge.new {
+    background: var(--success-50);
+    color: var(--success);
+  }
+  .v3-cbadge.modf {
+    background: var(--info-50);
+    color: var(--info);
+  }
+  .v3-cbadge.rem {
+    background: var(--error-50);
+    color: var(--error);
+  }
+}
+
+/* =============================================================================
+   Dialog / Modal Animations
+   ============================================================================= */
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dialog-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@property --ai-processing-border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes ai-processing-border-angle {
+  from {
+    --ai-processing-border-angle: 0deg;
+  }
+  to {
+    --ai-processing-border-angle: 360deg;
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: -200% 50%;
+  }
+}
+
+@keyframes slide-in-from-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@theme {
+  --animate-overlay-in: overlay-in 150ms ease forwards;
+  --animate-overlay-out: overlay-out 150ms ease forwards;
+  --animate-dialog-in: dialog-in 250ms ease forwards;
+  --animate-dialog-out: dialog-out 250ms ease forwards;
+}

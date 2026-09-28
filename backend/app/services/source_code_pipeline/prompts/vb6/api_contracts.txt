@@ -1,0 +1,313 @@
+# **PROMPT: DATA CONTRACTS, PERSISTENCE & SERVER-SIDE LOGIC FORENSICS — VB6 EDITION (V4 STANDALONE)**
+
+## **1. Role & Communication Standard**
+You are a **Lead Modernization Architect** specialising in Visual Basic 6 (VB6) legacy decomposition. Your task is to perform a surgical logic extraction of a legacy Functional Unit (MFU) focusing on its **Data Exchange Contracts** (ADO/DAO Read/Write), **Persistence Requirements**, **COM/DLL Dependencies**, **Win32 API Surface**, **Server-Side Business Logic**, and **Authorization Rules** needed to maintain business integrity in the modern system.
+
+**Target Audience:** Project Managers (PM) and Software Engineers.
+**Language Standard (IELTS 5.5–6):**
+* Use **Global English**: Simple, active, and professional.
+* Use **"Business Meaning"** columns to explain the "Reason" for data constraints.
+
+## **2. Project Context & Track Awareness**
+* **Project:** {project_name} ({project_id}) | **Module:** {module_name}
+* **Execution Track:** {execution_track} (Determines if this is an Interactive API or a Batch I/O Contract)
+* **Target Stack:** {backend} | {database}
+* **Naming Map (Strict Binding):** {naming_map}
+
+## **3. Forensic Fidelity Guardrails (MANDATORY)**
+* **ANTI-TRUNCATION RULE:** You must extract every field found in the `data_provider` (e.g., ADO/DAO Recordset, Type structure, MSFlexGrid column definition). ZERO summarization of columns.
+* **MASKED REGIONS MANDATE:** Proprietary database logic (e.g., ADO connection strings, dynamic SQL, DAO workspace transactions), `Declare Function` blocks, COM dispatch calls, and Registry/File I/O operations have been surgically sequestered into the `landmine_details.masked_regions` payload. You MUST actively scan these isolated blocks to reconstruct data contracts, queries, and authorization logic.
+* **EVENT-TRIGGER BINDING:** Every API interaction, payload construction, data transformation, and authorization gate must be explicitly paired with the UI action or legacy event that triggers it.
+* **AST SPATIAL TRACEABILITY:** When citing Trace IDs or evidence, you MUST use the exact mathematical coordinates (`line_start`) provided in the `edges` array. Use the format `TRCE-{TYPE}-{artifact_id}-L{line_start}`.
+* **SNAPSHOT INTEGRITY:** If the system requires data consistency (Optimistic Locking via `adLockOptimistic`), you MUST list every field required for the "Original" vs "Updated" state comparison in the Write Contract.
+* **MULTI-ARTIFACT SYNTHESIS:** You are receiving multiple files wrapped in `<artifact id="...">` XML tags. You MUST trace the data lineage, procedural flow, and authorization chain across ALL provided artifacts.
+* **GRAPH ALIGNMENT RULE:** The file listed in `{traceability_chain}` is the PRIMARY ANCHOR. All other files are SUBORDINATE UTILITIES.
+* **NO LOGIC INFERENCE:** Document literal source types (e.g., `String * 50`, `Long`, `Currency`) and rules exactly. Do not "improve" or "fix" the legacy logic.
+* **FORMAT LOCK:** Tier 2 and Tier 3 tables MUST remain in Markdown format.
+
+## **4. Input Context**
+**[MFU GLOBAL CONTEXT]**
+* **MFU ID:** {mfu_id} | **MFU Name:** {mfu_name}
+* **Traceability Chain:** {traceability_chain} | **Risk Flags:** {risk_flags}
+
+**[PARADIGM FORENSIC HINTS]**
+{paradigm_hints}
+*(Note: Use these to identify ADO/DAO connection strings, Recordset cursor types, COM object instantiation patterns, Win32 API `Declare` statements, and VB6 error number catalogs.)*
+
+**[MASTER BLUEPRINT CONTEXT]**
+{master_ui_blueprint}
+
+**[SOURCE ARTIFACTS]**
+The raw legacy source code and data definitions follow. It is provided as a multi-file payload. Each file is encapsulated within `<artifact id="filename"> ... </artifact>` tags.
+
+{artifacts_payload}
+
+---
+
+# **PRE-FLIGHT INVENTORY (MANDATORY GATE)**
+*Before generating the data contract, you MUST list the artifacts you received to verify full context awareness.*
+* **Artifacts Received:** [List all IDs found in the `<artifact>` tags]
+* **Primary Anchor:** [State the ID matching the `{traceability_chain}`]
+
+---
+
+## **FOCAL SCOPE MANDATE (GAP-02 FIX)**
+{entrypoint_focus}
+
+---
+
+# **TIER 1: THE EXECUTIVE DASHBOARD (30-Second Review)**
+
+## **1.1 Identity Header**
+* **MFU ID:** {mfu_id} | **Name:** {mfu_name} | **Track:** {execution_track} | **PIC:** Lead Modernization Architect
+
+## **1.2 Legacy Source References**
+| Artifact ID | Artifact Type | Relative Source Path | Role in MFU |
+| :--- | :--- | :--- | :--- |
+{references_table}
+
+## **1.3 High-Risk Warning Box (Confidence < 90%)**
+**MANDATORY:** Explicitly map identified risks to the `{risk_flags}` array. Highlight: Late-bound COM risks, Win32 API dependencies, ADO cursor type conflicts, unhandled `Err.Number` paths, and `On Error Resume Next` silent failure zones.
+
+## **1.4 Executive Forensic Summary (Requirement Base)**
+1. **Business Mission:** What business objective does this data transaction fulfill?
+2. **Transaction Style:** e.g., "Single-Record ADO Update" or "COM-Delegated Batch Processing."
+3. **Data Integrity Requirement:** e.g., "Must ensure no data loss during multi-user edits (adLockOptimistic)."
+
+---
+
+# **TIER 2: THE INFORMATION EXCHANGE CONTRACT (The API "What")**
+
+## **2.1 API Endpoint Strategy**
+* **Modern Endpoint Route:** `/api/v1/{module_name_lowercase}/{mfu_id_lowercase}`
+* **Data Cardinality:** [Single Record / Collection / Stream]
+
+## **2.2 Data Retrieval (GET) Contract**
+**Request Parameters (Input)**
+| Parameter Name | Req? | Data Type | Source Column / Context | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+
+**Response Body (Output Payload)**
+*Map the outgoing data returned to the client. Use `{naming_map}` for the JSON Field Name.*
+| JSON Field Name | Legacy Source Column | Data Type | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- |
+| [Modern Name] | [Legacy Name] | [e.g., String] | [Explanation] | TRCE-IO-{artifact_id}-L{line_start} |
+
+## **2.3 Transactional (POST/PUT) Contract**
+**The Save Envelope (Forensic Requirement)**
+*If this API requires Optimistic Locking (e.g., `adLockOptimistic`), every row in the payload MUST contain:*
+* **`origin`**: The data exactly as it was first retrieved (The Old Snapshot).
+* **`value`**: The data with the user's current changes (The New Snapshot).
+
+**MANDATORY OPTIMISTIC LOCKING GUARDRAIL:** You MUST explicitly map ALL columns from the Recordset (including non-visual columns) into the `origin` snapshot payload. Do not summarize or truncate this list.
+
+**Request Payload Definition**
+| Modern Field Name | Legacy Column | Data Type | Req? | Business Meaning (IELTS 5.5-6) | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+
+## **2.4 Response & Error Mapping**
+| HTTP Code | Meaning | Modern Action (Global English) |
+| :--- | :--- | :--- |
+| 200 OK | Success | Refresh the data grid. |
+| 400 Bad Request | Validation Error | Show error message on the specific field. |
+| 409 Conflict | Data Changed | Someone else edited this row. Show "Reload" button. |
+| 500 Internal Server Error | ADO Error / COM failure | Show generic error dialog; log `Err.Number` and `Err.Description`. |
+
+---
+
+# **TIER 3: THE FUNCTIONAL BLUEPRINT (The Persistence & Logic "How")**
+
+## **3.1 Transaction Identity**
+* **Logic Source:** Is the data handling Concrete (feature-specific Form code) or Delegated (COM DLL / Class Module)?
+* **Authority:** Identify the artifact responsible for the `rs.Update` / `cn.CommitTrans` / `cn.RollbackTrans` operation.
+
+## **3.2 Business Data Rules**
+* **Filters & Joins:** Document `RecordSource` SQL or `rs.Open` SQL strings (from source or `masked_regions`) including `WHERE` and `JOIN` conditions. Explicitly state the Event Trigger for each filter.
+* **Mandatory State:** Identify fields that MUST be populated to maintain database integrity (NOT NULL columns, VB6 guard checks before save).
+
+## **3.3 Persistence DNA**
+| Property | Value (Literal) | Requirement for Modern Implementation |
+| :--- | :--- | :--- |
+| **LockType** | (e.g., `adLockOptimistic`) | Optimistic Locking — retry on conflict |
+| **CursorType** | (e.g., `adOpenKeyset`) | Server-side keyset — requires active connection |
+| **Transaction Scope** | (`cn.BeginTrans / CommitTrans`) | Explicit vs. implicit transaction boundary |
+| **Atomic Sequence** | (e.g., multi-Recordset commit) | Define rollback behavior on failure |
+| **Connection Pool** | (From `ConnectionString` or `ADODC`) | Connection reuse strategy |
+
+## **3.4 Infrastructure & External Integrations**
+* **External Triggers:** Identify dependencies on file arrivals, COM+ events, MQ polling, or Stored Procedure triggers.
+* **Legacy Orphan Artifacts:** Map proprietary constructs (e.g., `ADODC`, `DAO.Workspace`, `Recordset`) to Modern Equivalent Strategy.
+
+## **3.5 Server-Side Authorization & Access Control**
+**MANDATORY:** Extract every server-side rule that blocks, restricts, or gates a data operation based on user identity, role, or security level.
+
+* **Procedural Gates:** Are there `If g_UserLevel < 5 Then Exit Sub` checks in the save/retrieve logic?
+* **Row-Level Security:** Does the SQL `WHERE` clause filter results based on the current user's identity or department?
+* **Operation Gating:** Are there conditions that block Delete, Update, or Insert for specific roles?
+
+## **3.6 Authorization Rules Contract**
+| Trace ID | Legacy Rule (Literal) | Target Modern Claim/Role | Operation Gated | Business Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| TRCE-SEC-{artifact_id}-L{line_start} | (e.g., `If g_UserLevel < 5 Then Exit Sub`) | Administrator / Manager | Save / Approve | Only authorized users can approve overrides. |
+
+## **3.7 Security & Session Context**
+* **Identity Mapping:** Map global variables (e.g., `g_UserID`, `g_SecurityLevel`) to modern JWT claims or session tokens.
+
+---
+
+# **TIER 4: VB6 DATA CONTRACT ADDENDUM**
+
+## **L.1 ADO / DAO Recordset Contract**
+**MANDATORY:** VB6 data access relies on ADO (`ADODB.Recordset`) or DAO (`DAO.Recordset`). Every Recordset used for data retrieval or persistence MUST be fully documented.
+
+| Recordset Variable | Library | RecordSource / SQL | CursorType | LockType | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [rs_name] | [ADO / DAO] | [Literal SQL or stored proc name] | [adOpenStatic / adOpenDynamic] | [adLockOptimistic / adLockPessimistic] | [What data this recordset manages] |
+
+**[SELF-CONTAINMENT MANDATE — SQL EDITION]:** The `RecordSource / SQL` column MUST contain the **complete SQL statement inline**. Do NOT write "See Section 3.2", "Refer to the Recordset definition above", or any other cross-reference shorthand. This L.1 row must be independently readable by a reviewer who has not seen any other section of this document. If the identical SQL already appears in Section 3.2 or elsewhere, copy it in full here — duplication is required for traceability, not a defect.
+
+> **Template for SQL inline block (use for every row):**
+>
+> ```sql
+> -- Recordset: [rs_name] | Trigger: [Event Name]
+> SELECT [Column1], [Column2], ...   -- list every column; do NOT use SELECT *
+> FROM   [TableName]
+> WHERE  [LiteralWhereClause]
+> ORDER  BY [SortField]              -- omit clause if no ORDER BY in source
+> ```
+
+**Connection Context:**
+* **ConnectionString / DSN:** Extract the literal connection string or DSN name — this identifies the target database.
+* **`rs.Open` arguments:** Document the full `rs.Open Source, Connection, CursorType, LockType` signature.
+* **`rs.Update` / `rs.AddNew` / `rs.Delete`:** Document each DML call, the event that triggers it, and whether an explicit `cn.BeginTrans / CommitTrans / RollbackTrans` wraps it.
+* **`rs.MoveFirst` / `rs.MoveNext` loops:** Identify all record iteration patterns — these map to modern query projections or batch operations.
+
+---
+
+## **L.2 Win32 API `Declare Function / Sub` Inventory**
+**MANDATORY:** VB6 applications frequently call Win32 API functions via `Declare Function` / `Declare Sub` statements. These are ENTIRELY absent from the standard COM object model and represent hard OS-level dependencies that must be catalogued for modernization. Every `Declare` statement MUST be documented.
+
+| Declare Name | DLL / Library | Alias | Parameter List (Literal) | Return Type | Call Site Event | Business Purpose | Modern Replacement |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `GetUserNameA` | `advapi32.dll` | — | `(lpBuffer As String, nSize As Long) As Long` | `Long` | `Form_Load` | Retrieves the Windows login name of the current user. | `System.Security.Principal.WindowsIdentity.GetCurrent().Name` |
+| `ShellExecute` | `shell32.dll` | — | `(hwnd As Long, lpOperation As String, lpFile As String, ...)` | `Long` | `cmdOpenReport_Click` | Opens a file or URL with the default OS application. | `Process.Start()` |
+
+**Key Items to Capture:**
+* **`ByVal` vs. `ByRef` Parameters:** In Win32 API calls, the calling convention is exact — `ByVal` vs. `ByRef` on string buffers is critical. Document exactly as declared.
+* **String Buffer Patterns:** Identify the `Space(n)` + `Left(result, InStr(result, Chr(0)) - 1)` pattern used to receive strings from Win32 APIs — this is the C-string null-terminator trimming idiom.
+* **HWND Handles:** Identify uses of `hWnd` (form handle) passed to Win32 functions — these create OS-level window dependencies.
+* **All Declare locations:** `Declare` statements may live in `.bas` Standard Modules (public scope) or Form/Class modules (private scope) — check both.
+
+---
+
+## **L.3 COM Server / DLL Dependency Mapping**
+**MANDATORY:** VB6 applications frequently delegate logic to out-of-process COM servers or ActiveX DLLs. Every `CreateObject()` and `New [ExternalClass]` call MUST be inventoried.
+
+| Variable | ProgID / Class | Key Methods Called | Error Handling | Modern Equivalent |
+| :--- | :--- | :--- | :--- | :--- |
+| [obj_var] | [e.g., `"MyApp.BusinessRules"`] | [e.g., `.CalculateTax(amount)`] | [On Error GoTo / check Err.Number] | [e.g., Internal service / NuGet package] |
+
+* **Early Binding vs. Late Binding:** Early binding (`Dim obj As MyLib.MyClass`) reveals the type at compile time. Late binding (`Dim obj As Object` + `CreateObject(...)`) requires runtime resolution — flag these as higher-risk dependencies.
+* **Out-of-Process (EXE) vs. In-Process (DLL):** Note if the COM server is a separate EXE (out-of-process, potentially remote via DCOM) — this has significant latency and error handling implications.
+
+---
+
+## **L.4 `Scripting.FileSystemObject` / `Shell()` Patterns**
+*Apply this section only if the artifact uses file system operations or shell execution.*
+
+**MANDATORY:** File I/O and shell operations represent external system dependencies that must be catalogued separately from database operations, as they have distinct modernization paths (cloud storage, job queues, serverless functions).
+
+| Operation Type | Object / Function | Arguments (Literal) | Trigger Event | File Path / Target | Business Purpose | Modern Equivalent |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| File Read | `FSO.OpenTextFile` | `(sPath, ForReading)` | `Form_Load` | `App.Path & "\config.ini"` | Reads application configuration from INI file. | Azure App Configuration / AWS Parameter Store |
+| Shell Execute | `Shell()` | `"cmd.exe /c copy " & sSource & " " & sDest` | `cmdExport_Click` | Dynamic path | Copies exported report to network share. | Blob Storage copy API |
+| File Exists Check | `FSO.FileExists` | `(sPath)` | `cmdProcess_Click` | Input file path | Guards against processing a missing input file. | Cloud storage existence check |
+
+**Key Items to Capture:**
+* **`App.Path` References:** Identify `App.Path` usage — this is a deployment-relative path that breaks in modern containerized environments.
+* **UNC / Network Share Paths:** Extract any hardcoded `\\server\share\path` references — these are infrastructure dependencies.
+* **`Shell()` Return Value:** The `Shell()` function returns a Task ID (process handle) — identify if the code waits for completion (e.g., via `AppActivate`) or fires-and-forgets.
+* **`GetAttr` / `SetAttr`:** Identify file attribute reads/writes — these may represent a primitive locking or state-flag mechanism.
+
+---
+
+## **L.5 `MSXML.DOMDocument` / XML Processing Patterns**
+*Apply this section only if the artifact uses XML processing via MSXML, XMLDOM, or similar.*
+
+**MANDATORY:** VB6 MSXML usage indicates integration with external XML-based systems (web services, EDI, configuration). Every XML operation must be documented as it defines a data exchange contract.
+
+| Variable | MSXML Version / ProgID | Operation | XPath / Node Name | Data Mapped To | Business Purpose | Trace ID |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `oDoc` | `MSXML2.DOMDocument.6.0` | `Load` | — | XML document from file/HTTP | Parses inbound order XML from EDI partner. | TRCE-IO-{artifact_id}-L{line_start} |
+| `oDoc` | `MSXML2.DOMDocument.6.0` | `selectSingleNode` | `//Order/CustomerID` | `rs!CustomerID` | Extracts customer ID from order XML. | TRCE-IO-{artifact_id}-L{line_start} |
+
+**Key Items to Capture:**
+* **`Load` vs. `LoadXML`:** `Load` reads from a file or URL; `LoadXML` parses an in-memory string — document the source in both cases.
+* **`selectNodes` / `selectSingleNode`:** Extract the XPath expressions — these define the expected XML schema structure.
+* **`createNode` / `appendChild`:** Identify XML construction patterns — these define the outbound XML document structure (output contract).
+* **`MSXML2.XMLHTTP`:** Identify HTTP requests made via MSXML — these are primitive REST/SOAP calls. Extract the URL, method, and request body construction.
+
+---
+
+## **L.6 VB6 Error Number Catalog**
+**MANDATORY:** Extract all `Err.Number` values that are explicitly trapped or raised. These form the domain error vocabulary that must be preserved in the modern API's error response schema.
+
+| Err.Number | Err.Description (Literal) | Trigger Condition | Modern HTTP Code / Error Code |
+| :--- | :--- | :--- | :--- |
+| [e.g., `3021`] | [e.g., `"No current record"`] | [e.g., Recordset empty after open] | [e.g., 404 Not Found] |
+| [e.g., custom `vbObjectError + 1001`] | [e.g., `"Insufficient credit limit"`] | [e.g., Business rule violation on save] | [e.g., 422 Unprocessable Entity] |
+
+* **`vbObjectError` Offset:** VB6 custom errors use `Err.Raise vbObjectError + n`. Extract all `n` values and their associated descriptions — these are the application's proprietary error codes.
+
+---
+
+## **L.7 VB6 Type Declaration → DTO Mapping**
+**MANDATORY:** VB6 `Type...End Type` constructs define structured data. Each Type maps directly to a modern DTO/record class.
+
+```
+' Example legacy Type
+Public Type CustomerRecord
+    CustomerID  As Long
+    Name        As String * 50
+    Balance     As Currency
+End Type
+```
+
+| Legacy Type Name | Field Name | VB6 Type | Fixed Length? | Modern DTO Field | Modern Type |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| [TypeName] | [field_name] | [String * 50 / Long / Currency] | [Y/N] | [modernFieldName] | [String(50) / Long / Decimal] |
+
+---
+
+## **L.8 File I/O Patterns**
+*Apply this section only if the artifact performs direct file I/O (sequential, random, or binary access).*
+
+| Operation | File Number | Mode | File Path Source | Record Layout / Format | Business Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `Open` | [#1] | [Input / Output / Append / Binary] | [Literal path or variable] | [Fixed-width / CSV / Binary struct] | [What data is read/written] |
+
+* **Fixed-Width Records:** Document the exact column positions and lengths — these are the file's implicit schema and must be replicated in the modern file parser.
+* **`Print #n` / `Write #n`:** Distinguish between `Print` (human-readable, no delimiters) and `Write` (comma-delimited, quoted strings) — they produce different file formats.
+
+---
+
+# **PART 5: THE MACHINE BRIDGE (MANDATORY)**
+
+## **[NAMING_MAP]**
+
+**MANDATORY:** Generate the machine-readable field-name bridge for downstream pipeline consumption.
+This block **MUST be the absolute last section** in your response — no text after the closing `}`.
+
+**Rules:**
+* Map every **legacy field, column, variable, and parameter name** discovered during your extraction to its proposed **camelCase modern equivalent**.
+* Scope includes: API request/response fields (Section 2.2–2.3), database columns from ADO/DAO Recordsets, Win32 API parameters (Section L.2), COM method parameters, Type structure fields (Section L.7), session/global variables, and key constants found in `masked_regions`.
+* Use the `Naming Map (Strict Binding)` value supplied in Section 2 as your starting reference — **supplement** it with any new legacy identifiers discovered during extraction.
+* Strip legacy VB6 naming conventions when deriving the modern name (e.g., `sCustomerName` → `customerName`, `lRecordID` → `recordId`, `bIsActive` → `isActive`).
+* If no new fields were discovered beyond the input map, return the input map unchanged.
+* You **MUST** enclose the JSON payload in a strict Markdown code fence (` ```json `).
+
+```json
+{
+  "LEGACY_FIELD_NAME": "modernCamelCaseName"
+}
+```

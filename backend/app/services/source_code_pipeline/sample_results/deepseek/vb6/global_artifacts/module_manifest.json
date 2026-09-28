@@ -1,0 +1,275 @@
+{
+  "_meta": {
+    "stage": "configured-from-module-config",
+    "strategy": "module_config",
+    "total_modules": 14,
+    "total_anchors": 68,
+    "target_count": 14
+  },
+  "modules": [
+    {
+      "module_id": "MOD-BUSINESS-CONFIGURATION",
+      "module_name": "Business Configuration",
+      "description": "Maintains business information and configuration settings.",
+      "execution_track": "UI-Track",
+      "entry_points": ["frmbusinessinfo"],
+      "artifacts": ["frmbusinessinfo"],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-CUSTOMER-MANAGEMENT",
+      "module_name": "Customer Management",
+      "description": "Manages customer accounts, including adding/editing customer information, printing customer details, and handling related customer types (AccCustomer, NCustomer).",
+      "execution_track": "UI-Track",
+      "entry_points": [
+        "frmacccustomer",
+        "frmcustomer",
+        "frmcustomerae",
+        "frmcustomerprintop",
+        "frmcustomerwb",
+        "frmncustomer"
+      ],
+      "artifacts": [
+        "frmacccustomer",
+        "frmcustomer",
+        "frmcustomerae",
+        "frmcustomerprintop",
+        "frmcustomerwb",
+        "frmncustomer"
+      ],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-DUE-CHECKS",
+      "module_name": "Due Checks",
+      "description": "Manages due checks, with printing options for due check reports.",
+      "execution_track": "UI-Track",
+      "entry_points": ["frmduechecks", "frmduechecksprintop"],
+      "artifacts": ["frmduechecks", "frmduechecksprintop"],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-INVOICE-MANAGEMENT",
+      "module_name": "Invoice Management",
+      "description": "Manages invoices, including creation, editing, picking from other lists, and viewing invoices (with history).",
+      "execution_track": "UI-Track",
+      "entry_points": [
+        "frminvoice",
+        "frminvoiceae",
+        "frminvoiceaepickfrom",
+        "frminvoiceviewer",
+        "frminvoiceviewerph"
+      ],
+      "artifacts": [
+        "frminvoice",
+        "frminvoiceae",
+        "frminvoiceaepickfrom",
+        "frminvoiceviewer",
+        "frminvoiceviewerph"
+      ],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-LOADING-MANAGEMENT",
+      "module_name": "Loading Management",
+      "description": "Manages loading operations, likely for logistics, supporting add/edit, pick from, and printing of loading documents.",
+      "execution_track": "UI-Track",
+      "entry_points": [
+        "frmloading",
+        "frmloadingae",
+        "frmloadingaepickfrom",
+        "frmloadingprintop"
+      ],
+      "artifacts": [
+        "frmloading",
+        "frmloadingae",
+        "frmloadingaepickfrom",
+        "frmloadingprintop"
+      ],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-PDC-MANAGEMENT",
+      "module_name": "PDC Management",
+      "description": "Manages post-dated cheques (PDC) with add/edit functionality.",
+      "execution_track": "UI-Track",
+      "entry_points": ["frmpdcmanager", "frmpdcmanagerae"],
+      "artifacts": ["frmpdcmanager", "frmpdcmanagerae"],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-PRODUCT-MANAGEMENT",
+      "module_name": "Product Management",
+      "description": "Handles product catalog and categories, with add/edit forms for products and categories.",
+      "execution_track": "UI-Track",
+      "entry_points": [
+        "frmcategories",
+        "frmcategoriesae",
+        "frmproduct",
+        "frmproductae"
+      ],
+      "artifacts": [
+        "frmcategories",
+        "frmcategoriesae",
+        "frmproduct",
+        "frmproductae"
+      ],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-SALES-REPORTING",
+      "module_name": "Sales Reporting",
+      "description": "Provides daily, weekly, and monthly sales report printing options.",
+      "execution_track": "UI-Track",
+      "entry_points": [
+        "frmdailysalesprintop",
+        "frmmonthlysalesprintop",
+        "frmweeklysalesprintop"
+      ],
+      "artifacts": [
+        "frmdailysalesprintop",
+        "frmmonthlysalesprintop",
+        "frmweeklysalesprintop"
+      ],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-SALESMAN-MANAGEMENT",
+      "module_name": "Salesman Management",
+      "description": "Manages salesman records, supporting add/edit operations.",
+      "execution_track": "UI-Track",
+      "entry_points": ["frmsalesman", "frmsalesmanae"],
+      "artifacts": ["frmsalesman", "frmsalesmanae"],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-SHARED-COMMON-SERVICES",
+      "module_name": "Shared / Common Services",
+      "description": "Provides cross-cutting utilities including database access, encryption, global variables, SQL parsing, paging, and generic UI components such as splash screen, about box, search dialogs, date picker, bank and zip code selectors, and main application shell.",
+      "execution_track": "UI-Track",
+      "entry_points": [
+        "ctrlliner",
+        "frm_do_first",
+        "frm_message",
+        "frmabout",
+        "frmdatechecker",
+        "frmfind",
+        "frmsearch",
+        "frmselectbank",
+        "frmselectbankadd",
+        "frmselectzipcode",
+        "frmselectzipcodeadd",
+        "frmshortcuts",
+        "frmsplash",
+        "main",
+        "tmp",
+        "tmp1",
+        "tmp2"
+      ],
+      "artifacts": [
+        "clsblowfish",
+        "clspaging",
+        "clssqlselectparser",
+        "ctrlliner",
+        "frm_do_first",
+        "frm_message",
+        "frmabout",
+        "frmdatechecker",
+        "frmfind",
+        "frmsearch",
+        "frmselectbank",
+        "frmselectbankadd",
+        "frmselectzipcode",
+        "frmselectzipcodeadd",
+        "frmshortcuts",
+        "frmsplash",
+        "main",
+        "modado",
+        "modapi",
+        "modencrypt",
+        "modfunction",
+        "modprocedure",
+        "modpublicvar",
+        "modvartype",
+        "tmp",
+        "tmp1",
+        "tmp2"
+      ],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-STOCK-MANAGEMENT",
+      "module_name": "Stock Management",
+      "description": "Handles stock receipt, monitoring, and viewing, with update capabilities and print options for stock in.",
+      "execution_track": "UI-Track",
+      "entry_points": [
+        "frmstockinprintop",
+        "frmstockmonitoring",
+        "frmstockmonitoringupdate",
+        "frmstockreceive",
+        "frmstockreceiveae",
+        "frmstockviewer"
+      ],
+      "artifacts": [
+        "frmstockinprintop",
+        "frmstockmonitoring",
+        "frmstockmonitoringupdate",
+        "frmstockreceive",
+        "frmstockreceiveae",
+        "frmstockviewer"
+      ],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-SUPPLIER-MANAGEMENT",
+      "module_name": "Supplier Management",
+      "description": "Manages supplier information with add/edit capabilities.",
+      "execution_track": "UI-Track",
+      "entry_points": ["frmsupplier", "frmsupplierae"],
+      "artifacts": ["frmsupplier", "frmsupplierae"],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-USER-MANAGEMENT",
+      "module_name": "User Management",
+      "description": "Handles user login and user record management (add/edit).",
+      "execution_track": "UI-Track",
+      "entry_points": ["frmlogin", "frmuserrec", "frmuserrecae"],
+      "artifacts": ["frmlogin", "frmuserrec", "frmuserrecae"],
+      "is_shared": false
+    },
+    {
+      "module_id": "MOD-VAN-MANAGEMENT",
+      "module_name": "Van Management",
+      "description": "Oversees van operations including van inventory, collection, remittance, with add/edit forms and print options for each.",
+      "execution_track": "UI-Track",
+      "entry_points": [
+        "frmvan",
+        "frmvanae",
+        "frmvancollection",
+        "frmvancollectionae",
+        "frmvancollectionaepickfrom",
+        "frmvaninventory",
+        "frmvaninventoryae",
+        "frmvaninvprintop",
+        "frmvanremmitance",
+        "frmvanremmitanceae",
+        "frmvanremmitanceaepickfrom"
+      ],
+      "artifacts": [
+        "frmvan",
+        "frmvanae",
+        "frmvancollection",
+        "frmvancollectionae",
+        "frmvancollectionaepickfrom",
+        "frmvaninventory",
+        "frmvaninventoryae",
+        "frmvaninvprintop",
+        "frmvanremmitance",
+        "frmvanremmitanceae",
+        "frmvanremmitanceaepickfrom"
+      ],
+      "is_shared": false
+    }
+  ]
+}

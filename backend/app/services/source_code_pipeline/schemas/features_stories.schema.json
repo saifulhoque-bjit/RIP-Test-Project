@@ -1,0 +1,989 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "features_stories.schema.json",
+  "title": "Stage 5 Feature & User Story Output Schema",
+  "description": "Defines the Module → Feature → UserStory hierarchy produced by Stage 5. Carries full L1/L2/L3 traceability back to SRS source documents and sections. Also supports the equivalent RFP path where L1/L2 point to RFP documents. Designed for direct ingestion by the Neo4j exporter's build_feature_story_graph() method.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "mfu_id",
+    "module_id",
+    "module_name",
+    "source_path",
+    "l1_source",
+    "features"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "5a.2",
+      "description": "Schema version tag — increment on breaking changes."
+    },
+    "mfu_id": {
+      "type": "string",
+      "description": "Parent MFU identifier (e.g. MFU-001A). Links this output back to the Stage 4 config_naming_map.json.",
+      "examples": [
+        "MFU-001A"
+      ]
+    },
+    "module_id": {
+      "type": "string",
+      "description": "Module identifier (e.g. MOD-ANCES). Matches the Module node already present in Neo4j.",
+      "examples": [
+        "MOD-ANCES"
+      ]
+    },
+    "module_name": {
+      "type": "string",
+      "description": "Business-quality module name. Uses the DDD-quality name from Stage 2.7 module_manifest.json when available; falls back to the folder-derived name. Matches the Module.name property in Neo4j.",
+      "examples": [
+        "Inventory Request Management"
+      ]
+    },
+    "module_description": {
+      "type": "string",
+      "description": "Business capability description for the module. Sourced from Stage 2.7 module_manifest.json when available; empty string otherwise. Always present — consumers do not need to cross-reference module_manifest.json."
+    },
+    "source_path": {
+      "type": "string",
+      "description": "Origin path of the primary SRS document, relative to project root.",
+      "examples": [
+        "modules/MOD-ANCES/stage4_specs/MFU-001A/1_UIBlueprint_w_fa_ances_infree.md"
+      ]
+    },
+    "l1_source": {
+      "$ref": "#/definitions/L1Source",
+      "description": "L1 traceability — the source document node for this derivation chain."
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered list of Features derived from the SRS for this MFU.",
+      "items": {
+        "$ref": "#/definitions/Feature"
+      }
+    },
+    "generation_metadata": {
+      "$ref": "#/definitions/GenerationMetadata",
+      "description": "Tracking metadata from the generator-critic run."
+    },
+    "module_business_name": {
+      "type": "string",
+      "description": "Refined DDD-quality domain name from Stage 2.7 module_manifest.json."
+    },
+    "module_business_description": {
+      "type": "string",
+      "description": "Refined business capability description from Stage 2.7 module_manifest.json."
+    },
+    "mfu_seq": {
+      "type": "string",
+      "description": "Zero-padded 3-digit sequence extracted from mfu_id (e.g. '001'). Used to derive Feature IDs.",
+      "examples": [
+        "001",
+        "002"
+      ]
+    },
+    "technology_tag": {
+      "type": "string",
+      "description": "Source technology paradigm (e.g. PowerBuilder, VB6, COBOL)."
+    }
+  },
+  "definitions": {
+    "L1Source": {
+      "type": "object",
+      "required": [
+        "id",
+        "document_type",
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "L1 traceability node — the top-level source document.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this source document node in Neo4j (e.g. SRS::MFU-001A::UIBlueprint).",
+          "examples": [
+            "SRS::MFU-001A::UIBlueprint",
+            "RFP::PROJ-001::MainRFP"
+          ]
+        },
+        "document_type": {
+          "type": "string",
+          "enum": [
+            "SRS_UIBlueprint",
+            "SRS_APIContracts",
+            "SRS_BatchBlueprint",
+            "RFP_Document",
+            "RFP_ClientAnswers",
+            "RFP_Feasibility"
+          ],
+          "description": "Classification of the source document."
+        },
+        "path": {
+          "type": "string",
+          "description": "File path relative to project root."
+        },
+        "screen_id": {
+          "type": "string",
+          "description": "SRS-derived Screen ID (e.g. FA_ANCES_EDIT_001). Present only for UIBlueprint documents.",
+          "examples": [
+            "FA_ANCES_EDIT_001"
+          ]
+        },
+        "mfu_id": {
+          "type": "string",
+          "description": "Parent MFU ID. Enables Neo4j edge: (MFU)-[:HAS_SPEC]->(SRSDocument)."
+        }
+      }
+    },
+    "L2Section": {
+      "type": "object",
+      "required": [
+        "id",
+        "section_type",
+        "section_ref"
+      ],
+      "additionalProperties": false,
+      "description": "L2 traceability node — a specific section, row, or event within the L1 source document. Maps to a :SRSSection node in Neo4j.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique section identifier (e.g. SRS::MFU-001A::S3::cb_retrieve).",
+          "examples": [
+            "SRS::MFU-001A::S3::cb_retrieve",
+            "SRS::MFU-001A::S5::EVENT-001",
+            "RFP::PROJ-001::SEC-3.2"
+          ]
+        },
+        "section_type": {
+          "type": "string",
+          "enum": [
+            "S1_ScreenIdentity",
+            "S2_Layout",
+            "S3_ControlRow",
+            "S4_ValidationRule",
+            "S5_Event",
+            "S5_OperationalSpec",
+            "API_Endpoint",
+            "Batch_Step",
+            "RFP_Section",
+            "RFP_ClientAnswer"
+          ],
+          "description": "Type of SRS section this L2 node represents."
+        },
+        "section_ref": {
+          "type": "string",
+          "description": "Human-readable reference string (e.g. 'S.3 row: cb_retrieve').",
+          "examples": [
+            "S.3 row: cb_retrieve",
+            "S.5 Event #1: Search",
+            "S.4 Validation: WS_AC_VALID"
+          ]
+        },
+        "trace_id": {
+          "type": "string",
+          "description": "TRCE-LOGIC trace ID linking this section back to exact source code lines.",
+          "pattern": "^TRCE-[A-Z]+-[\\w]+-L\\d+$",
+          "examples": [
+            "TRCE-LOGIC-w_fa_ances_infree-L433"
+          ]
+        },
+        "control_name": {
+          "type": "string",
+          "description": "Control name from S.3 table. Present for S3_ControlRow sections.",
+          "examples": [
+            "cb_retrieve",
+            "dw_data",
+            "cb_update"
+          ]
+        },
+        "line_start": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Source code line number where this section's logic begins. Derived from trace_id."
+        },
+        "line_end": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Source code line number where this section's logic ends."
+        },
+        "page_number": {
+          "type": "integer",
+          "description": "Page number within an RFP document. Present only for RFP path L2 sections."
+        }
+      }
+    },
+    "BoundingBox": {
+      "type": "object",
+      "required": [
+        "id",
+        "zone_id",
+        "zone_label_en",
+        "screen_position",
+        "controls",
+        "s3_row_refs"
+      ],
+      "additionalProperties": false,
+      "description": "Screen zone mapping for UI visualization. Maps a Feature to a named zone on the ASCII/zone map.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique bounding box ID (e.g. BBOX::FA_ANCES_EDIT_001::TOOLBAR_TOP).",
+          "examples": [
+            "BBOX::FA_ANCES_EDIT_001::TOOLBAR_TOP"
+          ]
+        },
+        "zone_id": {
+          "type": "string",
+          "description": "Symbolic zone identifier (e.g. TOOLBAR_TOP, GRID_AREA, TOOLBAR_BOTTOM, OVERLAY_PANEL).",
+          "examples": [
+            "TOOLBAR_TOP",
+            "GRID_AREA",
+            "TOOLBAR_BOTTOM",
+            "DETAIL_PANEL",
+            "OVERLAY_PANEL"
+          ]
+        },
+        "zone_label_en": {
+          "type": "string",
+          "description": "English label for the zone, for UI tooltip display.",
+          "examples": [
+            "Top Toolbar",
+            "Data Grid",
+            "Bottom Action Bar"
+          ]
+        },
+        "zone_label_jp": {
+          "type": "string",
+          "description": "Japanese label for the zone (legacy system context).",
+          "examples": [
+            "上部ツールバー",
+            "データグリッド",
+            "下部アクションバー"
+          ]
+        },
+        "screen_position": {
+          "type": "string",
+          "enum": [
+            "top",
+            "bottom",
+            "center",
+            "left",
+            "right",
+            "overlay",
+            "full"
+          ],
+          "description": "Canonical screen region for CSS-class-based rendering in the UI."
+        },
+        "controls": {
+          "type": "array",
+          "description": "Control names from S.3 that belong to this bounding box zone.",
+          "items": {
+            "type": "string"
+          },
+          "examples": [
+            [
+              "cb_retrieve",
+              "cb_rowins",
+              "cb_update",
+              "cb_dlete"
+            ]
+          ]
+        },
+        "s3_row_refs": {
+          "type": "array",
+          "description": "S.3 section IDs (L2 node IDs) that this bounding box encompasses.",
+          "items": {
+            "type": "string"
+          },
+          "examples": [
+            [
+              "SRS::MFU-001A::S3::cb_retrieve",
+              "SRS::MFU-001A::S3::cb_rowins"
+            ]
+          ]
+        },
+        "highlight_color": {
+          "type": "string",
+          "description": "Hex color code for UI overlay rendering.",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "examples": [
+            "#3B82F6",
+            "#10B981",
+            "#F59E0B"
+          ]
+        }
+      }
+    },
+    "SRSEvidence": {
+      "type": "object",
+      "required": [
+        "l2_id",
+        "file_name",
+        "section_anchor",
+        "highlight_type",
+        "target_string"
+      ],
+      "additionalProperties": false,
+      "description": "Physical routing data for the UX split-window viewer. Populated deterministically by the Python Linker (v2). Fields enable exact-string highlighting, hierarchical navigation, AC-level traceability, and precision-aware Stage 5c refinement triggering.",
+      "properties": {
+        "l2_id": {
+          "type": "string",
+          "description": "The logical L2 ID that triggered this mapping (e.g. SRS::MFU-001::S3::cmdRun)."
+        },
+        "file_name": {
+          "type": "string",
+          "description": "Physical SRS file name (e.g. 1_UIBlueprint_frmbatchrun.md)."
+        },
+        "section_anchor": {
+          "type": "string",
+          "description": "Innermost markdown heading text of the section containing the evidence. Used as the primary scroll target by the UI viewer."
+        },
+        "section_path": {
+          "type": "array",
+          "description": "Ordered heading hierarchy from outermost to innermost. Provides an unambiguous navigation path in long SRS files with repeated heading names.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "highlight_type": {
+          "type": "string",
+          "enum": [
+            "table_row",
+            "bullet_item",
+            "paragraph",
+            "section",
+            "file_level",
+            "inherited",
+            "file"
+          ],
+          "description": "Granularity of the UI highlight."
+        },
+        "target_string": {
+          "type": "string",
+          "description": "Unique discriminating substring the UI uses to locate the evidence within the section."
+        },
+        "exact_quote": {
+          "type": "string",
+          "description": "Verbatim text extracted from the SRS at index time. Empty string when not available."
+        },
+        "trace_id": {
+          "type": "string",
+          "description": "TRCE-IO-* or TRCE-LOGIC-* trace ID from the SRS appendix. Empty string when not applicable."
+        },
+        "evidence_role": {
+          "type": "string",
+          "enum": [
+            "ui_control",
+            "event_trigger",
+            "data_contract",
+            "write_contract",
+            "batch_step",
+            "parameter",
+            "validation_rule",
+            "trace_reference",
+            "business_rule"
+          ],
+          "description": "Semantic role of this evidence entry."
+        },
+        "srs_document_type": {
+          "type": "string",
+          "enum": [
+            "UIBlueprint",
+            "APIContracts",
+            "BatchBlueprint",
+            "SRS"
+          ],
+          "description": "SRS document format of the evidence file."
+        },
+        "precision": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "section",
+            "fuzzy",
+            "file"
+          ],
+          "description": "Resolution quality tier."
+        },
+        "ac_ids": {
+          "type": "array",
+          "description": "IDs of Acceptance Criteria whose l2_source_ref matches this evidence l2_id. Empty array when story-level only.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "line_number": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "1-based line number in the SRS file where this evidence was found. 0 when not available."
+        },
+        "cross_ref": {
+          "description": "Bidirectional link to related evidence in another SRS file. Null when no cross-file relationship detected.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "l2_id": {
+                  "type": "string",
+                  "description": "L2 ID of the linked evidence."
+                },
+                "file_name": {
+                  "type": "string",
+                  "description": "SRS file containing the linked evidence."
+                },
+                "line_number": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Line number of the linked evidence."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Human-readable description of the link."
+                }
+              }
+            }
+          ]
+        },
+        "source": {
+          "type": "string",
+          "description": "Internal marker for inherited evidence. Value is 'inherited_from_feature' when promoted from parent feature's srs_evidence during Layer 3 inheritance."
+        },
+        "context_snippet": {
+          "type": "string",
+          "description": "Short text snippet surrounding the evidence in the SRS file. Populated by the linker for file-level precision fallbacks. Empty string when not available."
+        },
+        "operation_type": {
+          "type": "string",
+          "description": "Operation classification from the S.5 event table column (e.g. 'dispatch', 'crud', 'report'). Empty string when not applicable or unavailable."
+        },
+        "tier": {
+          "type": "string",
+          "enum": [
+            "L1",
+            "L2",
+            "L3",
+            ""
+          ],
+          "description": "Evidence tier: L1 = story-specific direct evidence; L2 = feature-level inherited; L3 = S4 validation rule. Set by _hydrate_all_srs_evidence."
+        }
+      }
+    },
+    "AcceptanceCriterion": {
+      "type": "object",
+      "required": [
+        "id",
+        "path_type",
+        "given",
+        "when",
+        "then"
+      ],
+      "additionalProperties": false,
+      "description": "Single Gherkin-format acceptance criterion. Every story must have at minimum one Happy Path, one Negative Path, and one Edge Case.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "AC identifier (e.g. ANCES-001-F1-S1-AC1).",
+          "examples": [
+            "ANCES-001-F1-S1-AC1"
+          ]
+        },
+        "path_type": {
+          "type": "string",
+          "enum": [
+            "Happy Path",
+            "Negative Path",
+            "Edge Case"
+          ],
+          "description": "Classification of this AC — enforced by Critic."
+        },
+        "given": {
+          "type": "string",
+          "description": "Given: the precondition state.",
+          "examples": [
+            "the user has entered a valid ancestor code in the search field"
+          ]
+        },
+        "when": {
+          "type": "string",
+          "description": "When: the action performed.",
+          "examples": [
+            "they click the Search button (cb_retrieve)"
+          ]
+        },
+        "then": {
+          "type": "string",
+          "description": "Then: the expected observable outcome.",
+          "examples": [
+            "the data grid (dw_data) is populated with matching ancestor records within 3 seconds"
+          ]
+        },
+        "l2_source_ref": {
+          "type": "string",
+          "description": "L2 section ID this AC was derived from. Strengthens L3→L2 traceability at AC granularity.",
+          "examples": [
+            "SRS::MFU-001A::S5::EVENT-001"
+          ]
+        }
+      }
+    },
+    "UserStory": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "as_a",
+        "i_want_to",
+        "so_that",
+        "story_points",
+        "acceptance_criteria",
+        "l2_sources",
+        "technical_notes"
+      ],
+      "additionalProperties": false,
+      "description": "L3 traceability node. A single User Story derived from one or more L2 SRS sections. ID format: [MOD]-F[#]-S[#].",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Story ID in format [MOD]-{MFU_SEQ}-F[#]-S[#] (e.g. ANCES-001-F1-S1). The MFU sequence discriminator (-001-) is REQUIRED — the critic Gate 1d/3 hard-fails an ID lacking it. Must be unique within the module.",
+          "pattern": "^[A-Z][A-Z0-9-]+-F\\d+-S\\d+$",
+          "examples": [
+            "ANCES-001-F1-S1",
+            "ANCES-001-F1-S2",
+            "ANCES-001-F2-S1"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "description": "Short imperative title.",
+          "examples": [
+            "Search Ancestor Records by Code"
+          ]
+        },
+        "as_a": {
+          "type": "string",
+          "description": "Role performing the action. Must be a persona defined in the Persona Glossary.",
+          "examples": [
+            "Family Registry Clerk",
+            "System Administrator"
+          ]
+        },
+        "i_want_to": {
+          "type": "string",
+          "description": "The action the persona wants to perform.",
+          "examples": [
+            "retrieve ancestor records by entering a family code and clicking Search"
+          ]
+        },
+        "so_that": {
+          "type": "string",
+          "description": "Business outcome — must be meaningful, not generic.",
+          "examples": [
+            "I can verify the ancestor's registration details before submitting an update to the family registry"
+          ]
+        },
+        "story_points": {
+          "type": "integer",
+          "enum": [
+            2,
+            3,
+            5,
+            8
+          ],
+          "description": "Fibonacci story points {2,3,5,8}. story_points=1 is NOT permitted (the generator, corrector, and critic Gate 6b all forbid it), so it is excluded from the enum. Critic hard-fails anything above 8."
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "minItems": 3,
+          "description": "Minimum 3 ACs: one Happy Path, one Negative Path, one Edge Case.",
+          "items": {
+            "$ref": "#/definitions/AcceptanceCriterion"
+          }
+        },
+        "l2_sources": {
+          "type": "array",
+          "minItems": 1,
+          "description": "L2 section IDs this story was derived from.",
+          "items": {
+            "type": "string"
+          },
+          "examples": [
+            [
+              "SRS::MFU-001A::S3::cb_retrieve",
+              "SRS::MFU-001A::S5::EVENT-001"
+            ]
+          ]
+        },
+        "srs_evidence": {
+          "type": "array",
+          "description": "Physical routing data mapping l2_sources to physical files and UI anchors. Populated by the post-generation linker.",
+          "items": {
+            "$ref": "#/definitions/SRSEvidence"
+          }
+        },
+        "technical_notes": {
+          "type": "string",
+          "description": "Developer-facing notes: VB6/COBOL/PB control names, event names, API endpoints, DB2 cursors involved.",
+          "examples": [
+            "Triggers w_fa_ances_infree::cb_retrieve.clicked event. Populates dw_data DataWindow. Trace: TRCE-LOGIC-w_fa_ances_infree-L433."
+          ]
+        },
+        "migration_hint": {
+          "type": "string",
+          "description": "Optional modernisation guidance: suggested REST endpoint, React component, microservice boundary, or CQRS pattern.",
+          "examples": [
+            "Map to GET /api/v1/ancestors?code={familyCode}. React: <AncestorSearchBar /> with useQuery hook."
+          ]
+        },
+        "jira_issue_key": {
+          "type": "string",
+          "description": "L4 traceability — Jira issue key once created. Populated by CI/CD integration, not the generator.",
+          "examples": [
+            "PROJ-1234"
+          ]
+        },
+        "test_case_ids": {
+          "type": "array",
+          "description": "L4 traceability — test automation IDs. Populated by QA pipeline.",
+          "items": {
+            "type": "string"
+          },
+          "examples": [
+            [
+              "TC-ANCES-001",
+              "TC-ANCES-002"
+            ]
+          ]
+        },
+        "non_functional_requirements": {
+          "type": "array",
+          "description": "NFRs implied by or directly associated with this user story. Empty array when none detected.",
+          "items": {
+            "$ref": "#/definitions/NonFunctionalRequirement"
+          }
+        },
+        "screens": {
+          "type": "array",
+          "description": "#43 — legacy screen(s) this story relates to (e.g. host + popup). Each entry: {artifact_id, screen_id, controls_touched[], events_covered[]}. Join artifact_id to feature.screens[] for physical_file / type / ascii_layout_ref.",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "Feature": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "description",
+        "l2_sources",
+        "bounding_box",
+        "user_stories"
+      ],
+      "additionalProperties": false,
+      "description": "Mid-tier hierarchy node: Module → Feature → UserStory. Maps to a :Feature node in Neo4j. ID format: [MOD]-F[#].",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Feature ID in format [MOD]-{MFU_SEQ}-F[#] (e.g. ANCES-001-F1). The MFU sequence discriminator (-001-) is REQUIRED — the critic Gate 1d/3 hard-fails an ID lacking it. Must be unique within the project.",
+          "pattern": "^[A-Z][A-Z0-9-]+-F\\d+$",
+          "examples": [
+            "ANCES-001-F1",
+            "ANCES-001-F2",
+            "ANCES-002-F1"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "description": "Feature title (e.g. Ancestor Search & Retrieval).",
+          "examples": [
+            "Ancestor Search and Retrieval",
+            "Ancestor Record Editing",
+            "Grid Data Export"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "One-paragraph description of the feature's business purpose."
+        },
+        "source": {
+          "type": "string",
+          "description": "Citation of the specific SRS section, screen event, or RFP section that is the primary source for this feature.",
+          "examples": [
+            "SRS UIBlueprint FA_ANCES_EDIT_001, S.5 Event #1 — Search Operation"
+          ]
+        },
+        "l2_sources": {
+          "type": "array",
+          "minItems": 0,
+          "description": "L2 section IDs this Feature was derived from. Empty array allowed for infrastructure/dead-code features with no SRS traceability.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "srs_evidence": {
+          "type": "array",
+          "description": "Physical routing data mapping feature-level l2_sources to physical files and UI anchors. Populated by the post-generation linker.",
+          "items": {
+            "$ref": "#/definitions/SRSEvidence"
+          }
+        },
+        "bounding_box": {
+          "$ref": "#/definitions/BoundingBox",
+          "description": "Screen zone mapping for UI overlay visualization."
+        },
+        "user_stories": {
+          "type": "array",
+          "minItems": 0,
+          "description": "User Stories under this Feature.",
+          "items": {
+            "$ref": "#/definitions/UserStory"
+          }
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "Functional",
+            "Integration",
+            "Infrastructure",
+            "Report",
+            "Batch"
+          ],
+          "description": "Business architecture classification. 'Infrastructure' requires is_infrastructure=true."
+        },
+        "functions": {
+          "type": "array",
+          "description": "Sub-functions mapped from S.5 events. Empty array for infrastructure features.",
+          "items": {
+            "$ref": "#/definitions/FeatureFunction"
+          }
+        },
+        "business_context": {
+          "$ref": "#/definitions/BusinessContext",
+          "description": "Legacy current state and modern target state description."
+        },
+        "success_criteria": {
+          "type": "array",
+          "description": "Explicit NFRs extracted from SRS. Empty array when none present.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "is_infrastructure": {
+          "type": "boolean",
+          "description": "True if this feature is a system-level utility with no direct user-visible business value."
+        },
+        "srs_section_scope": {
+          "type": "array",
+          "description": "List of all SRS sections covering this MFU. Used by Stage 5b for story derivation context.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "condensation_note": {
+          "type": "string",
+          "description": "Required when is_infrastructure=true. Also used when infrastructure artifacts are bundled alongside user-facing content."
+        },
+        "screens": {
+          "type": "array",
+          "description": "#43 — registry of legacy screens this feature spans. Each entry: {artifact_id, screen_id, physical_file, type, role, srs_file, is_focal, ascii_layout_ref}.",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "GenerationMetadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Tracks the generator-critic loop outcome for audit and debugging. additionalProperties is true: this is a diagnostic block, so new audit fields (e.g. relaxed-gates / schema-error markers) may be added without breaking the schema.",
+      "properties": {
+        "generator_model": {
+          "type": "string",
+          "description": "LLM model used for generation (e.g. claude-opus-4-6).",
+          "examples": [
+            "claude-opus-4-6"
+          ]
+        },
+        "critic_model": {
+          "type": "string",
+          "description": "LLM model used for critique.",
+          "examples": [
+            "claude-sonnet-4-6"
+          ]
+        },
+        "iteration_count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of generator iterations performed (Stage 5a + 5b combined)."
+        },
+        "final_status": {
+          "type": "string",
+          "enum": [
+            "PASS",
+            "PASS_WITH_WARNINGS",
+            "PASS_RELAXED_GATES",
+            "FAIL_MAX_RETRIES",
+            "FAIL_NO_PARSEABLE_OUTPUT",
+            "FAIL_PARSE_ERROR",
+            "FAIL_SCHEMA_INVALID",
+            "FAIL_HALLUCINATION",
+            "PASS_DETERMINISTIC_FALLBACK",
+            "FAIL_CORRECTION_EXHAUSTED"
+          ],
+          "description": "Final verdict. PASS = critic approved; PASS_RELAXED_GATES = framework/menu/ancestor feature accepted with business-value gates relaxed (#20); FAIL_HALLUCINATION = a GROUNDING gate failed (9a SRS-contradiction / 5f ref-validity / 8a artifact-grounding) — content not grounded in the SRS, NEVER eligible for relaxed gates (#31); FAIL_MAX_RETRIES = best-effort written; FAIL_NO_PARSEABLE_OUTPUT = skeleton written; FAIL_SCHEMA_INVALID = output failed schema validation, quarantined (#19)."
+        },
+        "critic_feedback_log": {
+          "type": "array",
+          "description": "FEEDBACK from each critic iteration, for audit trail.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of final successful generation."
+        },
+        "correction_applied": {
+          "type": "boolean",
+          "description": "True when at least one Stage 5b correction pass was applied after the initial generation."
+        },
+        "status_detail": {
+          "type": "object",
+          "description": "Structured audit detail for the generator-critic loop run. Fields vary by run path.",
+          "additionalProperties": true
+        },
+        "fallback_reason": {
+          "type": "string",
+          "description": "Diagnostic reason string set by the deterministic fallback path (e.g. 'call1=mode4; call2=mode4')."
+        },
+        "failure_reason": {
+          "type": "string",
+          "description": "Diagnostic reason string for a non-PASS terminal status."
+        },
+        "schema_error": {
+          "type": "string",
+          "description": "#19 — captured JSON-schema validation error when final_status=FAIL_SCHEMA_INVALID."
+        },
+        "gate_profile": {
+          "type": "string",
+          "description": "#20 — 'framework' when the feature was classified as a reusable framework/menu/ancestor unit and graded with relaxed business-value gates."
+        },
+        "framework_focal": {
+          "type": "string",
+          "description": "#20 — the focal artifact id that matched a framework pattern (e.g. 'menu_dw', 'uo_anc_dw')."
+        },
+        "relaxed_gates": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "#20 — list of gate groups relaxed for this framework feature (e.g. business value, controls)."
+        },
+        "review_guidance": {
+          "type": "object",
+          "description": "#38 (MVP) — deterministic, PM-facing corrective-action guidance for this feature's final_status. Rendered by the review UI at feature level.",
+          "properties": {
+            "severity":              { "type": "string", "enum": ["none", "low", "trivial", "transient", "substantive", "critical"] },
+            "recommended_action":    { "type": "string", "enum": ["NONE", "SPOT_CHECK", "APPROVE_AS_IS", "EDIT", "RERUN", "REGENERATE"] },
+            "approve_as_is_allowed": { "type": "boolean", "description": "Drives the one-click-approve button. Hard-False for FAIL_HALLUCINATION / FAIL_SCHEMA_INVALID." },
+            "guideline":             { "type": "string", "description": "Human-readable corrective-action hint shown to the PM." },
+            "failure_summary":       { "type": "string", "description": "Verbatim critic feedback (authoritative reason); present for non-clean statuses." },
+            "flagged_story_ids":     { "type": "array", "items": { "type": "string" }, "description": "Story IDs the critic specifically flagged (best-effort), for pinpointing in the tree." },
+            "gate_reference":        { "type": "array", "description": "#38b — plain-English help for the Critic gate(s) referenced in failure_summary (failed gates only, full-catalog fallback). Rendered as help/tooltips by the review UI.", "items": { "type": "object", "properties": { "gate": { "type": "integer" }, "name": { "type": "string" }, "meaning": { "type": "string" } } } }
+          }
+        }
+      }
+    },
+    "FeatureFunction": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "l2_source_ref"
+      ],
+      "additionalProperties": false,
+      "description": "A sub-operation mapped 1:1 to an S.5 event. Sets the ceiling for Stage 5b story generation.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Function ID (e.g. APP-LABO-STOCK-001-F1-FN1).",
+          "pattern": "^[A-Z][A-Z0-9-]+-F\\d+-FN\\d+$"
+        },
+        "label": {
+          "type": "string",
+          "description": "Concise business sub-feature TITLE (one line) using domain vocabulary; verbatim event token retained in trailing parentheses for traceability."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional 2-3 sentence business explanation of the sub-feature, grounded in the S.5 event evidence. Carried forward from the Stage-5a feature manifest (function-label polish pass); absent when polish is disabled."
+        },
+        "l2_source_ref": {
+          "type": "string",
+          "description": "L2 ID of the S.5 event, S.3 control, or API endpoint this function maps to."
+        },
+        "function_label": {
+          "type": "string",
+          "description": "Legacy alias for label — emitted by older LLM generations. Normalized to label by the pipeline. Kept here for backward compatibility with pre-fix outputs."
+        }
+      }
+    },
+    "BusinessContext": {
+      "type": "object",
+      "required": [
+        "current_state",
+        "target_state"
+      ],
+      "additionalProperties": false,
+      "description": "Describes the legacy baseline and the modern target state.",
+      "properties": {
+        "current_state": {
+          "type": "string",
+          "description": "Description of the legacy artifact and its current user behavior."
+        },
+        "target_state": {
+          "type": "string",
+          "description": "Description of the modern equivalent (React component, REST endpoint, microservice)."
+        }
+      }
+    },
+    "NonFunctionalRequirement": {
+      "type": "object",
+      "required": [
+        "id",
+        "category",
+        "requirement"
+      ],
+      "additionalProperties": false,
+      "description": "A non-functional requirement implied by the SRS (security, performance, data integrity, audit). May be explicit in SRS or derived from technical evidence (e.g. unhandled SQL injection exposure).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "NFR identifier (e.g. FRMBATCHRUN-001-F1-S1-NFR1)."
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "Security",
+            "Performance",
+            "DataIntegrity",
+            "Auditability",
+            "Availability",
+            "Compliance",
+            "Usability"
+          ],
+          "description": "NFR classification."
+        },
+        "requirement": {
+          "type": "string",
+          "description": "Plain-text NFR statement (e.g. 'All API calls must complete within 2 seconds under 95th-percentile load')."
+        },
+        "derived_from": {
+          "type": "string",
+          "description": "Source of this NFR: 'explicit_srs' when stated in SRS text, 'implied_gap' when inferred from technical evidence or best practice."
+        }
+      }
+    }
+  }
+}

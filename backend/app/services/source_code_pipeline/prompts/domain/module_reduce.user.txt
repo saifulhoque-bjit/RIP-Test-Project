@@ -1,0 +1,13 @@
+PER-FILE DOMAIN NOTES:
+%%NOTES%%
+
+CALL-GRAPH ADJACENCY (files that call each other tend to belong together):
+%%ADJACENCY%%
+
+OUTPUT — ONLY this JSON between the markers:
+<<<MODULES>>>
+{"modules": [
+  {"module_name": "…", "description": "…", "subdomain_type": "core|supporting|generic", "file_ids": ["…"]}
+ ],
+ "glossary": [ {"term": "…", "definition": "…"} ]}
+<<<ENDMODULES>>>
