@@ -15,7 +15,7 @@ services:
     build:
       context: frontend
       args:
-        VITE_ENV: development
+        VITE_ENV: production
         VITE_API_BASE_URL: http://10.16.16.8:7900/api/v1
         VITE_CDN_URL: https://d1h706qqbkkhjo.cloudfront.net/
     image: rip-frontend:server
