@@ -19,6 +19,12 @@ export interface NotificationListResponse {
   limit: number;
 }
 
+export interface NotificationListApiResponse {
+  success: boolean;
+  message: string;
+  data: NotificationListResponse;
+}
+
 export interface NotificationUnreadCountResponse {
   unread_count: number;
 }

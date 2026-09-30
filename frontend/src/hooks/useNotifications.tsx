@@ -1,8 +1,8 @@
 /**
  * useNotifications
  *
- * State owner for the notification bell. Sources data exclusively from the
- * WebSocket (useNotificationSocket) rather than polling REST.
+ * State owner for the notification bell. Hydrates the initial feed through
+ * REST and receives live changes from the WebSocket (useNotificationSocket).
  *
  * Exposes `pendingDismissIds` — a Set of notification ids that should be
  * animated out. Header watches this via useEffect and triggers dismissOne()
@@ -10,9 +10,15 @@
  * both click-driven and WS-driven dismissals to go through the same path.
  */
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { BellIcon } from "@/assets/icons/notifications/BellIcon";
 import {
+  useGetNotificationsQuery,
   useMarkAllReadMutation,
   useMarkAsReadMutation,
 } from "@/services/api/modules/notification";
@@ -87,6 +93,18 @@ interface PendingExplanation {
   explanation: string;
 }
 
+function mergeNotifications(
+  current: Notification[],
+  incoming: Notification[],
+): Notification[] {
+  const byId = new Map(current.map((notification) => [notification.id, notification]));
+  incoming.forEach((notification) => byId.set(notification.id, notification));
+
+  return [...byId.values()].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at),
+  );
+}
+
 export function useNotifications() {
   const token = useAppSelector((state) => state.auth.accessToken) ?? null;
   const dispatch = useAppDispatch();
@@ -96,12 +114,9 @@ export function useNotifications() {
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [explanationQueue, setExplanationQueue] = useState<PendingExplanation[]>([]);
+  const { data: notificationResponse } = useGetNotificationsQuery({ limit: 50 });
 
-  // ── WebSocket handlers ───────────────────────────────────────────────────
-
-  const onCurrent = useCallback((items: Notification[]) => {
-    setNotifications(items);
-
+  const queueExplanations = useCallback((items: Notification[]) => {
     // Catches messages that already existed before this page load/reconnect
     // — not just ones that arrive live via onNew below.
     const qualifying = items
@@ -121,6 +136,18 @@ export function useNotifications() {
       return fresh.length > 0 ? [...prev, ...fresh] : prev;
     });
   }, []);
+
+  // ── Initial and WebSocket hydration ─────────────────────────────────────
+
+  const onCurrent = useCallback(
+    (items: Notification[]) => {
+      // Merge instead of replacing: a notification.new event can arrive just
+      // before the server's initial snapshot when a tab first connects.
+      setNotifications((prev) => mergeNotifications(prev, items));
+      queueExplanations(items);
+    },
+    [queueExplanations],
+  );
 
   const onNew = useCallback(
     (notification: Notification) => {
@@ -188,10 +215,12 @@ export function useNotifications() {
     setExplanationQueue((prev) => prev.slice(1));
   }, [explanationQueue]);
 
-  const headerNotifications: HeaderNotification[] = useMemo(
-    () => notifications.map(toHeaderNotification),
-    [notifications],
-  );
+  const headerNotifications: HeaderNotification[] = useMemo(() => {
+    const restNotifications = notificationResponse?.data?.items ?? [];
+    return mergeNotifications(restNotifications, notifications).map(
+      toHeaderNotification,
+    );
+  }, [notifications, notificationResponse]);
 
   return {
     notifications: headerNotifications,

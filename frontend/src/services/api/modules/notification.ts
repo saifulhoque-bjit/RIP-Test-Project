@@ -2,18 +2,21 @@ import { baseApi } from "@/services/api/baseApi";
 import { API_ENDPOINTS } from "@/services/api/endpoints";
 import type {
   Notification,
-  NotificationListResponse,
+  NotificationListApiResponse,
   NotificationUnreadCountResponse,
 } from "@/types/notification";
 
 const notificationApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    getNotifications: build.query<NotificationListResponse, { skip?: number; limit?: number } | void>({
+    getNotifications: build.query<
+      NotificationListApiResponse,
+      { skip?: number; limit?: number } | void
+    >({
       query: (params) => ({
         url: API_ENDPOINTS.NOTIFICATIONS.GET_LIST,
         params: {
           skip: params?.skip ?? 0,
-          limit: params?.limit ?? 20,
+          limit: params?.limit ?? 50,
         },
       }),
       providesTags: [{ type: "Notification", id: "LIST" }],
