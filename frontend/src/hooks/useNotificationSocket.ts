@@ -67,16 +67,25 @@ export function useNotificationSocket(
   const reconnectDelayRef = useRef(BASE_RECONNECT_DELAY_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
+  const connectRef = useRef<() => void>(() => undefined);
 
   // Keep callbacks in a ref so the stable connect closure always sees the
   // latest versions without needing to be listed as a dependency.
   const callbacksRef = useRef(callbacks);
-  callbacksRef.current = callbacks;
+
+  useEffect(() => {
+    callbacksRef.current = callbacks;
+  }, [callbacks]);
 
   const connect = useCallback(() => {
-    if (unmountedRef.current || !token) return;
+    if (unmountedRef.current) return;
 
-    const url = `${WS_BASE_URL}/ws/notifications?token=${encodeURIComponent(token)}`;
+    // The access token is kept in sessionStorage, which is scoped to a single
+    // tab. Use the HttpOnly cookie when a newly opened tab has no token yet.
+    const tokenQuery = token
+      ? `?token=${encodeURIComponent(token)}`
+      : "";
+    const url = `${WS_BASE_URL}/ws/notifications${tokenQuery}`;
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
@@ -122,7 +131,7 @@ export function useNotificationSocket(
           reconnectDelayRef.current * 2,
           MAX_RECONNECT_DELAY_MS,
         );
-        connect();
+        connectRef.current();
       }, reconnectDelayRef.current);
     };
 
@@ -131,6 +140,10 @@ export function useNotificationSocket(
       ws.close();
     };
   }, [token]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     unmountedRef.current = false;
