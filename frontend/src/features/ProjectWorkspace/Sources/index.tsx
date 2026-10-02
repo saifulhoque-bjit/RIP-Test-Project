@@ -509,6 +509,7 @@ export default function Sources() {
                     file={file}
                     index={index}
                     onRemove={handleRemoveUploadFile}
+                    disabled={isUploading}
                     isSuccess={fileUploadSuccesses.has(file.name)}
                     errorMessage={fileUploadErrors[file.name]?.message}
                   />
