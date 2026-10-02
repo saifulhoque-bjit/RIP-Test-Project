@@ -1165,6 +1165,7 @@ def cmd_revise(
     quoted_text: str = None,
     target_ids=None,
     feedback_spec: dict = None,
+    api_key: str | None = None,
 ):
     """
     #42 — Human-feedback revision (the app's 'revise' review action).
@@ -1278,6 +1279,7 @@ def cmd_revise(
             project_root=str(Path.cwd()),
             max_iterations=3,
             trigger_neo4j=False,  # single-MFU revision — skip graph rebuild
+            api_key=api_key,
         )
         # In edit mode the pre-edit doc is merged onto the generated output BEFORE the critic
         # runs (inside run_for_mfu / _run_stage5b), so the critic + grounding gates validate

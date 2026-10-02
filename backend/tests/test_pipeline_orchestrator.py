@@ -51,6 +51,34 @@ def test_reconstructed_revise_service_preserves_runtime_api_key() -> None:
     assert service_cls.call_args.kwargs["api_key"] == "runtime-api-key"
 
 
+def test_revise_mfu_passes_runtime_api_key_to_canonical_flow(tmp_path: Path) -> None:
+    mfu_dir = tmp_path / "modules/MOD-1/stage4_specs/MFU-1"
+    mfu_dir.mkdir(parents=True)
+    service = object.__new__(SourceCodePipelineService)
+    service.api_key = "runtime-api-key"
+    service.project_dir = tmp_path
+    service.modules_root = tmp_path / "modules"
+
+    with (
+        patch(
+            "app.services.source_code_pipeline.source_code_pipeline_service._set_project_paths"
+        ),
+        patch(
+            "app.services.source_code_pipeline.source_code_pipeline_service._cmd_revise",
+            return_value={"ok": True, "mode": "regenerate", "final_status": "PASS"},
+        ) as cmd_revise,
+    ):
+        result = service.revise_mfu(
+            module_id="MOD-1",
+            mfu_id="MFU-1",
+            feedback="Clarify the story.",
+            mode="regenerate",
+        )
+
+    assert result["status"] == "success"
+    assert cmd_revise.call_args.kwargs["api_key"] == "runtime-api-key"
+
+
 def _make_orchestrator(request_id: str | None = "req-cancel-test") -> PipelineOrchestrator:
     """Build an orchestrator without running __init__ (filesystem/config-heavy:
     loads project config, prepares source layout, loads plugins) — the loop
@@ -64,6 +92,7 @@ def _make_orchestrator(request_id: str | None = "req-cancel-test") -> PipelineOr
         prompt_dir="tests/fixtures/pipeline_orchestrator_cancel/prompts",
         skip_processing=False,
         request_id=request_id,
+        llm_api_key=None,
     )
     # process_complete_module_pipeline unconditionally refreshes the module
     # manifest via self.service at the end — normally set up in __init__.
