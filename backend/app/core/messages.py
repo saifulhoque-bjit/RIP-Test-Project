@@ -239,6 +239,9 @@ MSG_SOURCE_BULK_FILES_REQUIRED = "At least one file is required for a bulk uploa
 MSG_SOURCE_BULK_TOO_MANY = (
     "Bulk upload accepts at most {max_files} files per request (received {received})."
 )
+MSG_SOURCE_CODE_SINGLE_FILE = (
+    "Source-code upload accepts only one file per request (received {received})."
+)
 MSG_SOURCE_BULK_TOTAL_TOO_LARGE = (
     "Combined size of all files in this bulk upload exceeds the maximum"
     " allowed total of {max_mb} MB."
