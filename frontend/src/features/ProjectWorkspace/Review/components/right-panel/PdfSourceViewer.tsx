@@ -118,9 +118,9 @@ export default function PdfSourceViewer({
   const targetPageRef = useRef<HTMLDivElement>(null);
   const boundingBoxRef = useRef<HTMLDivElement>(null);
   const coordinatesStringRef = useRef<string>(JSON.stringify(coordinates));
-  const pageDimensionsRef = useRef<Record<number, { w: number; h: number }>>(
-    {},
-  );
+  const [pageDimensions, setPageDimensions] = useState<
+    Record<number, { w: number; h: number }>
+  >({});
   const dragRef = useRef<{
     coordinateIndex: number;
     page: number;
@@ -229,15 +229,12 @@ export default function PdfSourceViewer({
     };
   }, [scrollTargetIntoOwnContainer]);
 
+  const targetPageDimensions = pageDimensions[pageNumber];
+
   useEffect(() => {
     setHasScrolledToTarget(false);
-    const cached = pageDimensionsRef.current[pageNumber];
-    if (cached) {
-      setTargetPageReady(true);
-    } else {
-      setTargetPageReady(false);
-    }
-  }, [pageNumber]);
+    setTargetPageReady(Boolean(targetPageDimensions));
+  }, [pageNumber, targetPageDimensions]);
 
   useEffect(() => {
     if (editable && isDragging) return;
@@ -311,12 +308,12 @@ export default function PdfSourceViewer({
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
 
-      const pageDimensions = pageDimensionsRef.current[page];
-      if (!pageDimensions) return;
+      const dimensions = pageDimensions[page];
+      if (!dimensions) return;
 
       const curPageWidth = pageWidthRef.current;
-      const curOrigW = pageDimensions.w;
-      const curOrigH = pageDimensions.h;
+      const curOrigW = dimensions.w;
+      const curOrigH = dimensions.h;
 
       const sf = curOrigW > 0 ? curPageWidth / curOrigW : 1;
       const dxOrig = dx / sf;
@@ -399,7 +396,7 @@ export default function PdfSourceViewer({
       document.removeEventListener("pointerup", onPointerUp);
       document.removeEventListener("pointercancel", onPointerUp);
     };
-  }, [onCoordinatesChange]);
+  }, [onCoordinatesChange, pageDimensions]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -447,13 +444,15 @@ export default function PdfSourceViewer({
           {Array.from({ length: numPages }, (_, i) => {
             const pageIndex = i + 1;
             const isTargetPage = pageIndex === safePageNumber;
-            const pageDimensions = pageDimensionsRef.current[pageIndex];
-            const pageScaleFactor = pageDimensions
-              ? renderedPageWidth / pageDimensions.w
+            const dimensions = pageDimensions[pageIndex];
+            const pageScaleFactor = dimensions
+              ? renderedPageWidth / dimensions.w
               : 1;
-            const pageBoxes = boxes
-              .map((item, index) => ({ item, index }))
-              .filter(({ item }) => item.page === pageIndex);
+            const pageBoxes = dimensions
+              ? boxes
+                  .map((item, index) => ({ item, index }))
+                  .filter(({ item }) => item.page === pageIndex)
+              : [];
 
             return (
               <div key={pageIndex} className="w-full">
@@ -480,13 +479,22 @@ export default function PdfSourceViewer({
                     renderTextLayer={false}
                     renderAnnotationLayer={false}
                     onLoadSuccess={(page) => {
-                      pageDimensionsRef.current[pageIndex] = {
-                        w: page.originalWidth,
-                        h: page.originalHeight,
-                      };
-                      if (isTargetPage) {
-                        setTargetPageReady(true);
-                      }
+                      setPageDimensions((previous) => {
+                        const current = previous[pageIndex];
+                        if (
+                          current?.w === page.originalWidth &&
+                          current.h === page.originalHeight
+                        ) {
+                          return previous;
+                        }
+                        return {
+                          ...previous,
+                          [pageIndex]: {
+                            w: page.originalWidth,
+                            h: page.originalHeight,
+                          },
+                        };
+                      });
                     }}
                   />
 
