@@ -106,6 +106,9 @@ export default function PdfSourceViewer({
   const [numPages, setNumPages] = useState<number>(0);
   const [boxes, setBoxes] = useState<PageCoordinate[]>(() => coordinates ?? []);
   const [pageWidth, setPageWidth] = useState<number>(600);
+  const [pageDimensions, setPageDimensions] = useState<
+    Record<number, { w: number; h: number }>
+  >({});
   const [hoveredCoordinateIndex, setHoveredCoordinateIndex] = useState<
     number | null
   >(null);
@@ -447,9 +450,9 @@ export default function PdfSourceViewer({
           {Array.from({ length: numPages }, (_, i) => {
             const pageIndex = i + 1;
             const isTargetPage = pageIndex === safePageNumber;
-            const pageDimensions = pageDimensionsRef.current[pageIndex];
-            const pageScaleFactor = pageDimensions
-              ? renderedPageWidth / pageDimensions.w
+            const pageDimension = pageDimensions[pageIndex];
+            const pageScaleFactor = pageDimension
+              ? renderedPageWidth / pageDimension.w
               : 1;
             const pageBoxes = boxes
               .map((item, index) => ({ item, index }))
@@ -480,10 +483,15 @@ export default function PdfSourceViewer({
                     renderTextLayer={false}
                     renderAnnotationLayer={false}
                     onLoadSuccess={(page) => {
-                      pageDimensionsRef.current[pageIndex] = {
+                      const dimensions = {
                         w: page.originalWidth,
                         h: page.originalHeight,
                       };
+                      pageDimensionsRef.current[pageIndex] = dimensions;
+                      setPageDimensions((current) => ({
+                        ...current,
+                        [pageIndex]: dimensions,
+                      }));
                       if (isTargetPage) {
                         setTargetPageReady(true);
                       }
