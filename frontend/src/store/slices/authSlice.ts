@@ -42,6 +42,16 @@ function loadCognitoUsername(): string | null {
   }
 }
 
+function clearSessionStorage(): void {
+  try {
+    sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    sessionStorage.removeItem(SESSION_REFRESH_TOKEN_KEY);
+    sessionStorage.removeItem(SESSION_COGNITO_USERNAME_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Restore persisted auth state from localStorage/sessionStorage on app boot. */
 function loadAuthState(): Omit<
   AuthState,
@@ -162,13 +172,18 @@ const authSlice = createSlice({
 
       // Clear persisted auth data
       localStorage.removeItem("authUser");
-      try {
-        sessionStorage.removeItem(SESSION_TOKEN_KEY);
-        sessionStorage.removeItem(SESSION_REFRESH_TOKEN_KEY);
-        sessionStorage.removeItem(SESSION_COGNITO_USERNAME_KEY);
-      } catch {
-        /* ignore */
-      }
+      clearSessionStorage();
+    },
+
+    /** Clears this tab after another tab changes the shared browser session. */
+    setUnauthenticatedInCurrentTab(state) {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.isLoading = false;
+      state.accessToken = null;
+      state.refreshToken = null;
+      state.cognitoUsername = null;
+      clearSessionStorage();
     },
 
     setAuthLoading(state, action: PayloadAction<boolean>) {
@@ -205,6 +220,7 @@ const authSlice = createSlice({
 export const {
   setAuthenticated,
   setUnauthenticated,
+  setUnauthenticatedInCurrentTab,
   setAuthLoading,
   setAccessToken,
 } = authSlice.actions;
