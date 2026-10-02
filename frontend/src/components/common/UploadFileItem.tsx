@@ -12,6 +12,7 @@ interface UploadFileItemProps {
   errorMessage?: string;
   onRetry?: (index: number) => void;
   isSuccess?: boolean;
+  disabled?: boolean;
 }
 
 export default function UploadFileItem({
@@ -22,6 +23,7 @@ export default function UploadFileItem({
   errorMessage,
   onRetry,
   isSuccess,
+  disabled = false,
 }: UploadFileItemProps) {
   return (
     <li className="w-full">
@@ -39,12 +41,13 @@ export default function UploadFileItem({
         {!isSuccess && onRemove && (
           <button
             type="button"
-            className="inline-flex items-center gap-1 border-none bg-transparent p-0 text-[13px] font-medium text-[var(--error)] cursor-pointer"
+            className="inline-flex items-center gap-1 border-none bg-transparent p-0 text-[13px] font-medium text-[var(--error)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={disabled}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              onRemove(index);
+              if (!disabled) onRemove(index);
             }}
           >
             <DeleteIcon />
