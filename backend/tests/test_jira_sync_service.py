@@ -388,6 +388,20 @@ class TestNotifyJiraSyncStatus:
         mock_record.assert_not_called()
         mock_publish.assert_not_called()
 
+    def test_notification_failure_does_not_fail_sync(self) -> None:
+        uow = self._make_uow(owner_id=uuid.uuid4())
+
+        with patch(
+            "app.services.activity_log_service.record_activity",
+            side_effect=RuntimeError("activity database unavailable"),
+        ):
+            JiraSyncService._notify_jira_sync_status(
+                uow=uow,
+                project_id=uuid.uuid4(),
+                status="completed",
+                actor_user_id=None,
+            )
+
 
 class TestGetSyncHistory:
     def test_returns_paginated_response(self) -> None:

@@ -109,11 +109,42 @@ class JiraSyncService:
         errors_count: int = 0,
         error: str | None = None,
     ) -> None:
+        """Record sync status without changing the sync outcome if it fails."""
+        try:
+            JiraSyncService._record_jira_sync_status(
+                uow=uow,
+                project_id=project_id,
+                status=status,
+                actor_user_id=actor_user_id,
+                created=created,
+                updated=updated,
+                deprecated=deprecated,
+                errors_count=errors_count,
+                error=error,
+            )
+        except Exception:
+            logger.warning(
+                "Failed to record or publish Jira sync status: project_id=%s status=%s",
+                project_id,
+                status,
+                exc_info=True,
+            )
+
+    @staticmethod
+    def _record_jira_sync_status(
+        *,
+        uow: UnitOfWork,
+        project_id: UUID,
+        status: str,
+        actor_user_id: UUID | None,
+        created: int = 0,
+        updated: int = 0,
+        deprecated: int = 0,
+        errors_count: int = 0,
+        error: str | None = None,
+    ) -> None:
         """Record an activity-log entry and notify the project owner and every
         assigned member about a Jira sync's start, completion, or failure.
-
-        Never raises — a notification/activity-log failure must not fail an
-        already-successful (or already-failed) sync.
         """
         from app.core.enums.notification_type import NotificationType  # noqa: PLC0415
         from app.services.activity_log_service import record_activity  # noqa: PLC0415
