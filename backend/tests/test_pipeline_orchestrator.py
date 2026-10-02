@@ -7,6 +7,9 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from app.services.source_code_pipeline.pipeline_orchestrator import PipelineOrchestrator
+from app.services.source_code_pipeline.source_code_pipeline_service import (
+    SourceCodePipelineService,
+)
 
 
 def _make_orchestrator(request_id: str | None = "req-cancel-test") -> PipelineOrchestrator:
@@ -28,6 +31,45 @@ def _make_orchestrator(request_id: str | None = "req-cancel-test") -> PipelineOr
     orchestrator.service = MagicMock()
     orchestrator.service.get_module_manifest.return_value = {"module_manifest": {}}
     return orchestrator
+
+
+def test_reconstructed_revise_service_preserves_runtime_api_key() -> None:
+    service = object.__new__(SourceCodePipelineService)
+    service.api_key = "runtime-api-key"
+    service.project_dir = Path("/tmp/source-feedback")
+    service.prompt_dir = Path("/tmp/prompts")
+    service.schema_dir = Path("/tmp/schemas")
+    service.archetype_dir = Path("/tmp/config")
+
+    project_root = Path("/tmp/source-feedback/task-1")
+    service._reconstruct_revise_workspace = MagicMock(
+        return_value={
+            "mfu_dir": project_root / "modules/MOD-1/stage4_specs/MFU-1",
+            "project_root": project_root,
+        }
+    )
+    in_place_service = MagicMock()
+    in_place_service.revise_mfu.return_value = {
+        "status": "success",
+        "result": {"features": []},
+        "output_path": None,
+    }
+
+    with patch(
+        "app.services.source_code_pipeline.source_code_pipeline_service.SourceCodePipelineService",
+        return_value=in_place_service,
+    ) as service_cls:
+        result = service.revise_mfu_with_reconstruction(
+            {
+                "module_id": "MOD-1",
+                "mfu_id": "MFU-1",
+                "feedback": "Clarify the story.",
+                "srs_files": [],
+            }
+        )
+
+    assert result["status"] == "success"
+    assert service_cls.call_args.kwargs["api_key"] == "runtime-api-key"
 
 
 class TestProcessCompleteModulePipelineCancellation:
