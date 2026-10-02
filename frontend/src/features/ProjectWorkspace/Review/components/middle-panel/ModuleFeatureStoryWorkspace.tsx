@@ -435,7 +435,6 @@ export default function ModuleFeatureStoryWorkspace({
   const showEmptyState =
     treeData.length === 0 || (approvedOnly && filteredTreeData.length === 0);
   const showApproveAllModulesBtn =
-    !areAllApprovedForMod &&
     projectType === "rfp" &&
     !hasUserStories &&
     !isProjectBusy &&
