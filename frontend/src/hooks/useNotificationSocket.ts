@@ -74,9 +74,11 @@ export function useNotificationSocket(
   callbacksRef.current = callbacks;
 
   const connect = useCallback(() => {
-    if (unmountedRef.current || !token) return;
+    if (unmountedRef.current) return;
 
-    const url = `${WS_BASE_URL}/ws/notifications?token=${encodeURIComponent(token)}`;
+    // A new tab has no sessionStorage token, but shares the HttpOnly auth cookie.
+    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : "";
+    const url = `${WS_BASE_URL}/ws/notifications${tokenQuery}`;
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
