@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "@/lib/toast";
 import { Table } from "@/components/common/Table";
 import { createPipelineRunColumns } from "./pipelineRunsTableColumns";
 import { RunJourney } from "./components/RunJourney";
+import { parseRunError } from "./utils/parseRunError";
 import { useGetIngestionListQuery } from "@/services/api/modules/sources";
 import { useGetProjectQuery } from "@/services/api/modules/projects";
 import { useNavigate, useParams } from "react-router-dom";
@@ -31,9 +33,34 @@ export default function Pipelines() {
     skip: !projectId,
   });
   const project = projectResponse?.data;
-
-  const runs = ingestionResponse?.data?.items ?? [];
+  const runs = useMemo(
+    () => ingestionResponse?.data?.items ?? [],
+    [ingestionResponse?.data?.items],
+  );
   const hasError = !!error;
+  const announcedFailureIds = useRef(new Set<string>());
+
+  useEffect(() => {
+    for (const run of runs) {
+      if (
+        run.source_type !== "rfp" ||
+        run.status !== "failed" ||
+        !run.errors?.length ||
+        announcedFailureIds.current.has(run.id)
+      ) {
+        continue;
+      }
+
+      const firstError = run.errors[0];
+      const parsed = parseRunError(firstError);
+      const reason = parsed?.message ?? firstError;
+      const code = parsed?.code ? ` (${parsed.code})` : "";
+      toast.error(`RFP ingestion failed${code}: ${reason}`, {
+        toastId: `ingestion-failed-${run.id}`,
+      });
+      announcedFailureIds.current.add(run.id);
+    }
+  }, [runs]);
 
   // Defaults to the top row whenever nothing (or a now-gone run) is selected.
   const selectedRun =
