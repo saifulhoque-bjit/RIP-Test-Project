@@ -184,8 +184,10 @@ export default function LoginPage() {
       dispatch(
         setAuthenticated({
           id: idPayload.sub,
-          displayName: idPayload.name || email,
-          email: data.email || email,
+          // The local user record is authoritative because Cognito may retain
+          // stale attributes when an email is deleted and reinvited.
+          displayName: data.name || submittedEmail,
+          email: data.email || submittedEmail,
           roles: data.roles,
           permissions: data.permissions,
           accessToken: data.access_token,

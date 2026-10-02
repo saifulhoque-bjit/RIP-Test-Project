@@ -128,7 +128,7 @@ def sync_verified_flag(*, email: str) -> None:
 
 
 def attach_user_roles(tokens: TokenData, email: str) -> None:
-    """Enrich *tokens* in-place with the user's email, roles, and permissions from the DB.
+    """Enrich *tokens* in-place with the user's profile and access data from the DB.
 
     Cognito authentication alone does not grant access: the caller must also
     have a local ``User`` row already, which only exists once an invitation
@@ -168,5 +168,6 @@ def attach_user_roles(tokens: TokenData, email: str) -> None:
 
         tokens.cognito_username = db_user.username or username or tokens.cognito_username
         tokens.email = db_user.email
+        tokens.name = db_user.name
         tokens.roles = [r.name for r in db_user.roles]
         tokens.permissions = [p.name for r in db_user.roles for p in r.permissions]

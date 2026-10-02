@@ -30,6 +30,8 @@ export interface LoginResponseData {
   refresh_token: string;
   cognito_username: string;
   email: string;
+  /** Display name from the authoritative local user record. */
+  name?: string | null;
   token_type: string;
   expires_in: number;
   roles: string[];
