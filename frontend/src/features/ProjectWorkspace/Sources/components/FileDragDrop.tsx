@@ -54,7 +54,7 @@ export default function FileDragDrop({
       <input
         ref={inputRef}
         type="file"
-        multiple
+        multiple={uploadScenario !== "codebase-initial"}
         accept={acceptValue}
         onChange={handleInputChange}
         disabled={isDisabledState}
