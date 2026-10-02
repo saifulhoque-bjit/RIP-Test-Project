@@ -371,6 +371,24 @@ class TestUploadBulk:
             )
 
     @pytest.mark.asyncio
+    async def test_source_code_upload_rejects_multiple_files(self, uow):
+        files = [
+            _make_upload_file(filename="first.zip", content_type="application/zip"),
+            _make_upload_file(filename="second.zip", content_type="application/zip"),
+        ]
+
+        with pytest.raises(AppValidationError, match="only one file"):
+            await SourceService().upload_bulk(
+                files=files,
+                project_id=uuid.uuid4(),
+                description=None,
+                source_type="source_code",
+                uploader_id=uuid.uuid4(),
+                uow=uow,
+            )
+
+
+    @pytest.mark.asyncio
     async def test_bulk_cumulative_size_exceeded_raises(self, uow):
         from app.core.config import settings
         from app.core.constants import BYTES_PER_MB

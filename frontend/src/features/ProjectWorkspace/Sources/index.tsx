@@ -50,6 +50,7 @@ import Modal from "@/components/common/Modal/index";
 import { InfoNote } from "@/components/common/Note";
 import FieldLabel from "@/components/common/FieldLabel";
 import { RadioGroup } from "@/components/common/RadioGroup";
+import { toast } from "@/lib/toast";
 
 // The native <input accept> attribute only filters the OS file picker
 // dialog — it does nothing for drag-and-drop, so every entry point has to
@@ -239,6 +240,15 @@ export default function Sources() {
     .join(",");
 
   const queueFilesForUpload = (files: File[]) => {
+    const isSingleSourceCodeUpload =
+      projectType === "source_code" && !isIncrementalProcess;
+    if (isSingleSourceCodeUpload && (files.length > 1 || uploadModalFiles.length > 0)) {
+      toast.error("Upload one source code ZIP file at a time.", {
+        toastId: "single-source-code-upload",
+      });
+      return;
+    }
+
     const { accepted, rejected } = splitFilesByExtension(
       files,
       effectiveAllowedExtensions,

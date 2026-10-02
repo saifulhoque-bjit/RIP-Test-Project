@@ -61,6 +61,7 @@ from app.core.messages import (
     MSG_SOURCE_BULK_NO_SOURCES_UPLOADED,
     MSG_SOURCE_BULK_TOO_MANY,
     MSG_SOURCE_BULK_TOTAL_TOO_LARGE,
+    MSG_SOURCE_CODE_SINGLE_FILE,
     MSG_SOURCE_DELETE_FORBIDDEN,
     MSG_SOURCE_DUPLICATE,
     MSG_SOURCE_FILE_TOO_LARGE,
@@ -398,6 +399,7 @@ class SourceService:
         *,
         files: list[UploadFile],
         project_id: UUID,
+        source_type: str,
         uow: UnitOfWork,
         requester_id: UUID | None = None,
         requester_roles: list[str] | None = None,
@@ -419,6 +421,11 @@ class SourceService:
 
         if not files:
             raise AppValidationError(MSG_SOURCE_BULK_FILES_REQUIRED)
+
+        if source_type == SOURCE_TYPE_SOURCE_CODE and len(files) > 1:
+            raise AppValidationError(
+                MSG_SOURCE_CODE_SINGLE_FILE.format(received=len(files))
+            )
 
         max_files = settings.SOURCE_BULK_MAX_FILES
         if len(files) > max_files:
@@ -783,6 +790,7 @@ class SourceService:
         self._validate_bulk_upload_request(
             files=files,
             project_id=project_id,
+            source_type=source_type,
             uow=uow,
             requester_id=uploader_id,
             requester_roles=requester_roles,
