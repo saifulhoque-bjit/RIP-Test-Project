@@ -229,10 +229,12 @@ export default function PdfSourceViewer({
     };
   }, [scrollTargetIntoOwnContainer]);
 
+  const targetPageDimensions = pageDimensions[pageNumber];
+
   useEffect(() => {
     setHasScrolledToTarget(false);
-    setTargetPageReady(Boolean(pageDimensions[pageNumber]));
-  }, [pageDimensions, pageNumber]);
+    setTargetPageReady(Boolean(targetPageDimensions));
+  }, [pageNumber, targetPageDimensions]);
 
   useEffect(() => {
     if (editable && isDragging) return;
