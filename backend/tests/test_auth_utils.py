@@ -33,6 +33,7 @@ class TestAttachUserRoles:
         db_user = MagicMock()
         db_user.username = "alice@example.com"
         db_user.email = "alice@example.com"
+        db_user.name = "Alice From Invitation"
         db_user.roles = [role_viewer]
 
         uow = MagicMock()
@@ -68,6 +69,7 @@ class TestAttachUserRoles:
         assert tokens.permissions == ["tests:read"]
         assert tokens.cognito_username == "alice@example.com"
         assert tokens.email == "alice@example.com"
+        assert tokens.name == "Alice From Invitation"
 
     def test_fallback_to_email_lookup_when_id_token_cannot_be_decoded(self) -> None:
         """sub="" (decode failed) still resolves via get_authenticated_user's
@@ -140,6 +142,6 @@ class TestAttachUserRoles:
             patch("app.utils.auth.decode_cognito_token", return_value=claims),
             patch("app.utils.auth.UnitOfWork", return_value=cm),
             patch("app.utils.auth.UserService", return_value=mock_service),
+            pytest.raises(ForbiddenError),
         ):
-            with pytest.raises(ForbiddenError):
-                attach_user_roles(tokens, "uninvited@example.com")
+            attach_user_roles(tokens, "uninvited@example.com")
