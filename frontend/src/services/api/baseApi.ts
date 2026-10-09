@@ -50,7 +50,7 @@ const getErrorMessage = (error: FetchBaseQueryError): string => {
  * (e.g. a "does this exist yet?" GET where a 404 is an expected, normal state).
  */
 export interface RipBaseQueryExtraOptions {
-  suppressToastFor?: number[];
+  suppressToastFor?: FetchBaseQueryError["status"][];
 }
 
 /** Auth endpoints must never trigger a refresh-and-retry cycle on their own 401s. */
@@ -145,10 +145,7 @@ const baseQueryWithReauth: BaseQueryFn<
   if (result.error) {
     const { status } = result.error;
 
-    if (
-      typeof status === "number" &&
-      extraOptions?.suppressToastFor?.includes(status)
-    ) {
+    if (extraOptions?.suppressToastFor?.includes(status)) {
       return result;
     }
 

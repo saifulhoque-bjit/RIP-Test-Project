@@ -16,7 +16,7 @@ import {
   type JiraSyncPayload,
 } from "@/services/api/modules/jiraSync";
 import { useExecuteTapSyncMutation } from "@/services/api/modules/tapSync";
-import { getErrorMessage } from "@/utils/getErrorMessage";
+import { describeSyncFailure } from "./syncOutcome";
 import { calculateSyncGroup, type SyncGroup } from "./syncGroup";
 
 export type SyncTarget = "jira" | "tap";
@@ -288,7 +288,8 @@ export function SyncTray({
         );
       }
     } catch (error) {
-      toast.error(getErrorMessage(error, `Failed to sync to ${targetLabel}.`));
+      const failure = describeSyncFailure(error, targetLabel);
+      toast[failure.kind](failure.message);
     } finally {
       setReleasing(false);
       // Closed here rather than on each success path so a failed release
