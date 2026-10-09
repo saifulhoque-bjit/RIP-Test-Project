@@ -97,6 +97,30 @@ interface JiraSyncExecuteApiResponse {
   data: JiraSyncExecuteResult;
 }
 
+/**
+ * Gateway statuses returned while the upstream request may still be running.
+ * A Jira sync that gets one of these has not necessarily failed.
+ */
+const JIRA_SYNC_INDETERMINATE_HTTP_STATUSES = [502, 504];
+
+/**
+ * True when an `executeJiraSync` error means the browser lost track of the
+ * request (dropped connection, client timeout, gateway timeout), not that the
+ * backend reported a failure — the sync may well have completed.
+ */
+export function isJiraSyncOutcomeUnknown(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("status" in error)) {
+    return false;
+  }
+  const { status } = error as { status: unknown };
+  return (
+    status === "FETCH_ERROR" ||
+    status === "TIMEOUT_ERROR" ||
+    (typeof status === "number" &&
+      JIRA_SYNC_INDETERMINATE_HTTP_STATUSES.includes(status))
+  );
+}
+
 const jiraSyncApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     /**
@@ -171,6 +195,17 @@ const jiraSyncApi = baseApi.injectEndpoints({
         method: "POST",
         body: { modules },
       }),
+      // The sync runs inside this one long request and keeps writing to Jira
+      // on the server after the browser loses the response. These statuses
+      // don't say whether it succeeded, so SyncTray reports them itself
+      // (see isJiraSyncOutcomeUnknown) instead of a generic failure toast.
+      extraOptions: {
+        suppressToastFor: [
+          "FETCH_ERROR",
+          "TIMEOUT_ERROR",
+          ...JIRA_SYNC_INDETERMINATE_HTTP_STATUSES,
+        ],
+      },
       transformResponse: (response: JiraSyncExecuteApiResponse) =>
         response.data,
       // Also invalidate the tree — a successful sync flips is_jira_synced on

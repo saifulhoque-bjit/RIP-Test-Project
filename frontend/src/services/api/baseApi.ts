@@ -50,7 +50,7 @@ const getErrorMessage = (error: FetchBaseQueryError): string => {
  * (e.g. a "does this exist yet?" GET where a 404 is an expected, normal state).
  */
 export interface RipBaseQueryExtraOptions {
-  suppressToastFor?: number[];
+  suppressToastFor?: (number | "FETCH_ERROR" | "TIMEOUT_ERROR")[];
 }
 
 /** Auth endpoints must never trigger a refresh-and-retry cycle on their own 401s. */
@@ -146,7 +146,9 @@ const baseQueryWithReauth: BaseQueryFn<
     const { status } = result.error;
 
     if (
-      typeof status === "number" &&
+      (typeof status === "number" ||
+        status === "FETCH_ERROR" ||
+        status === "TIMEOUT_ERROR") &&
       extraOptions?.suppressToastFor?.includes(status)
     ) {
       return result;

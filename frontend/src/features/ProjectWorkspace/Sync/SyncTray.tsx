@@ -12,6 +12,7 @@ import {
   useGetSyncCandidatesQuery,
   useLazyGetSyncStoryDetailQuery,
   useExecuteJiraSyncMutation,
+  isJiraSyncOutcomeUnknown,
   type JiraSyncModule,
   type JiraSyncPayload,
 } from "@/services/api/modules/jiraSync";
@@ -288,7 +289,19 @@ export function SyncTray({
         );
       }
     } catch (error) {
-      toast.error(getErrorMessage(error, `Failed to sync to ${targetLabel}.`));
+      // The backend keeps syncing to Jira after the browser loses the
+      // response, and sends a completion notification when it finishes. A
+      // dropped connection or gateway timeout is therefore not a failure —
+      // only report one when the backend actually returned an error.
+      if (target === "jira" && isJiraSyncOutcomeUnknown(error)) {
+        toast.info(
+          "Jira sync is still running. You'll get a notification when it completes.",
+        );
+      } else {
+        toast.error(
+          getErrorMessage(error, `Failed to sync to ${targetLabel}.`),
+        );
+      }
     } finally {
       setReleasing(false);
       // Closed here rather than on each success path so a failed release
