@@ -1,5 +1,6 @@
 import { baseApi } from "@/services/api/baseApi";
 import { API_ENDPOINTS } from "@/services/api/endpoints";
+import { SYNC_OUTCOME_UNKNOWN_STATUSES } from "@/features/ProjectWorkspace/Sync/syncOutcome";
 import type {
   RequirementDetailResponse,
   SyncCandidatesResponse,
@@ -173,6 +174,11 @@ const jiraSyncApi = baseApi.injectEndpoints({
       }),
       transformResponse: (response: JiraSyncExecuteApiResponse) =>
         response.data,
+      // A dropped connection or gateway timeout doesn't mean the sync failed
+      // — it keeps running on the server. SyncTray shows the right toast for
+      // these; the generic "Request timed out. Please try again." would
+      // invite a duplicate sync.
+      extraOptions: { suppressToastFor: SYNC_OUTCOME_UNKNOWN_STATUSES },
       // Also invalidate the tree — a successful sync flips is_jira_synced on
       // the synced stories, so the header badge and the tray's own list (both
       // read via getSyncRequirementsTree) need to refetch to drop them out.
