@@ -172,6 +172,11 @@ def _run_parse_document_task(
                 error=resolve_error,
                 stage="source.source_not_found",
             )
+            _fail_ingestion_for_parse_failure(
+                project_id=project_id,
+                source_ids=all_source_ids,
+                errors=[resolve_error],
+            )
             return {
                 "project_id": project_id,
                 "status": SOURCE_STATUS_FAILED,
@@ -185,6 +190,11 @@ def _run_parse_document_task(
         )
 
         if not processed_sources:
+            _fail_ingestion_for_parse_failure(
+                project_id=project_id,
+                source_ids=valid_source_ids,
+                errors=[failed["error"] for failed in failed_sources],
+            )
             return {
                 "project_id": project_id,
                 "status": SOURCE_STATUS_FAILED,
@@ -216,11 +226,46 @@ def _run_parse_document_task(
             task_db_id=task_db_id,
             project_id=project_id,
         )
+        _fail_ingestion_for_parse_failure(
+            project_id=project_id,
+            source_ids=all_source_ids,
+            errors=[f"Unexpected task failure: {exc}"],
+        )
         return {
             "project_id": project_id,
             "status": SOURCE_STATUS_FAILED,
             "error": str(exc),
         }
+
+
+def _fail_ingestion_for_parse_failure(
+    *,
+    project_id: str,
+    source_ids: list[str],
+    errors: list[str],
+) -> None:
+    """Mark the run's SourceIngestion failed with the parse-phase reason(s).
+
+    A parse-phase failure otherwise only reaches the Source rows, leaving the
+    ingestion ``running`` until ``fail_stale_running_ingestions`` fails it
+    with the generic stale-run message — so the Pipelines tab showed
+    "failed" with no specific reason and no failure notification was sent.
+    Mirrors the generation-phase failure path: records each distinct error
+    on ``errors`` and notifies the project owner. Never raises.
+    """
+    distinct_errors = [error for error in dict.fromkeys(errors) if error]
+    _update_source_ingestion_fields(
+        source_ids=source_ids,
+        fields={"status": SourceIngestionStatus.FAILED.value},
+    )
+    for error in distinct_errors:
+        _add_source_ingestion_error(source_ids=source_ids, error=error)
+    _notify_module_feature_status(
+        project_id=project_id,
+        status=SourceIngestionStatus.FAILED.value,
+        is_regeneration=False,
+        error="; ".join(distinct_errors) or None,
+    )
 
 
 def _mark_sources_failed(

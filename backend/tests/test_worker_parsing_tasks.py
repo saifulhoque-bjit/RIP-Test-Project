@@ -40,6 +40,7 @@ from app.workers.document_task_stages import (
     _add_run_stage_by_source_ids,
     _async_build_fragments,
     _count_module_feature_regeneration_changes,
+    _fail_ingestion_for_parse_failure,
     _notify_module_feature_status,
     _notify_story_feedback_patch_status,
     _notify_user_story_regeneration_status,
@@ -4160,6 +4161,9 @@ def test_run_parse_document_task_returns_failed_when_source_resolution_fails() -
             return_value=([], "bad source ids"),
         ),
         patch("app.workers.document_task_stages._mark_sources_failed") as mock_mark_failed,
+        patch(
+            "app.workers.document_task_stages._fail_ingestion_for_parse_failure"
+        ) as mock_fail_ingestion,
     ):
         result = _run_parse_document_task(
             project_id="project-x",
@@ -4171,7 +4175,101 @@ def test_run_parse_document_task_returns_failed_when_source_resolution_fails() -
     assert result["status"] == SOURCE_STATUS_FAILED
     assert result["error"] == "bad source ids"
     mock_mark_failed.assert_called_once()
+    mock_fail_ingestion.assert_called_once_with(
+        project_id="project-x",
+        source_ids=["not-a-uuid"],
+        errors=["bad source ids"],
+    )
     dispatch.assert_not_called()
+
+
+def test_run_parse_document_task_all_sources_failed_records_reason_on_ingestion() -> None:
+    """Regression (P1821-376): a parse-phase failure must fail the ingestion
+    with the specific reason and notify, not leave it ``running`` for the
+    stale-run sweeper to fail with a generic message."""
+    source_ids = ["00000000-0000-0000-0000-000000000001"]
+    dispatch = MagicMock()
+
+    with (
+        patch(
+            "app.workers.document_task_stages._resolve_valid_source_ids",
+            return_value=(source_ids, None),
+        ),
+        patch(
+            "app.workers.document_task_stages._process_document_sources",
+            return_value=([], [{"source_id": source_ids[0], "error": "LlamaParse auth failed"}]),
+        ),
+        patch(
+            "app.workers.document_task_stages._update_source_ingestion_fields"
+        ) as mock_update_fields,
+        patch("app.workers.document_task_stages._add_source_ingestion_error") as mock_add_error,
+        patch("app.workers.document_task_stages._notify_module_feature_status") as mock_notify,
+    ):
+        result = _run_parse_document_task(
+            project_id="project-z",
+            source_ids=source_ids,
+            task_db_id="task-1",
+            dispatch_generate_task=dispatch,
+        )
+
+    assert result["status"] == SOURCE_STATUS_FAILED
+    dispatch.assert_not_called()
+    mock_update_fields.assert_called_once_with(
+        source_ids=source_ids,
+        fields={"status": SourceIngestionStatus.FAILED.value},
+    )
+    mock_add_error.assert_called_once_with(source_ids=source_ids, error="LlamaParse auth failed")
+    mock_notify.assert_called_once_with(
+        project_id="project-z",
+        status=SourceIngestionStatus.FAILED.value,
+        is_regeneration=False,
+        error="LlamaParse auth failed",
+    )
+
+
+def test_run_parse_document_task_unexpected_failure_records_reason_on_ingestion() -> None:
+    source_ids = ["00000000-0000-0000-0000-000000000001"]
+
+    with (
+        patch(
+            "app.workers.document_task_stages._resolve_valid_source_ids",
+            side_effect=RuntimeError("db down"),
+        ),
+        patch("app.workers.document_task_stages._mark_sources_failed"),
+        patch("app.workers.document_task_stages._update_source_ingestion_fields"),
+        patch("app.workers.document_task_stages._add_source_ingestion_error") as mock_add_error,
+        patch("app.workers.document_task_stages._notify_module_feature_status"),
+    ):
+        result = _run_parse_document_task(
+            project_id="project-z",
+            source_ids=source_ids,
+            task_db_id=None,
+            dispatch_generate_task=MagicMock(),
+        )
+
+    assert result["status"] == SOURCE_STATUS_FAILED
+    mock_add_error.assert_called_once_with(
+        source_ids=source_ids, error="Unexpected task failure: db down"
+    )
+
+
+def test_fail_ingestion_for_parse_failure_dedupes_errors() -> None:
+    with (
+        patch("app.workers.document_task_stages._update_source_ingestion_fields"),
+        patch("app.workers.document_task_stages._add_source_ingestion_error") as mock_add_error,
+        patch("app.workers.document_task_stages._notify_module_feature_status") as mock_notify,
+    ):
+        _fail_ingestion_for_parse_failure(
+            project_id="p",
+            source_ids=["s1", "s2"],
+            errors=["bad file", "bad file", "", "timeout"],
+        )
+
+    assert mock_add_error.call_args_list == [
+        call(source_ids=["s1", "s2"], error="bad file"),
+        call(source_ids=["s1", "s2"], error="timeout"),
+    ]
+    assert mock_notify.call_args.kwargs["error"] == "bad file; timeout"
 
 
 def test_run_parse_document_task_dispatches_after_success() -> None:
