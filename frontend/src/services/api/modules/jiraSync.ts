@@ -171,6 +171,9 @@ const jiraSyncApi = baseApi.injectEndpoints({
         method: "POST",
         body: { modules },
       }),
+      // A gateway error on this long request doesn't mean the sync failed —
+      // SyncTray waits for the backend's completion notification instead.
+      extraOptions: { suppressToastFor: [502, 503, 504] },
       transformResponse: (response: JiraSyncExecuteApiResponse) =>
         response.data,
       // Also invalidate the tree — a successful sync flips is_jira_synced on

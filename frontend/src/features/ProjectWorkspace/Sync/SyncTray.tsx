@@ -18,6 +18,7 @@ import {
 import { useExecuteTapSyncMutation } from "@/services/api/modules/tapSync";
 import { getErrorMessage } from "@/utils/getErrorMessage";
 import { calculateSyncGroup, type SyncGroup } from "./syncGroup";
+import { isUnconfirmedSyncError, markJiraSyncPending } from "./pendingJiraSync";
 
 export type SyncTarget = "jira" | "tap";
 
@@ -288,6 +289,15 @@ export function SyncTray({
         );
       }
     } catch (error) {
+      // A dropped/timed-out connection isn't a failed sync — the backend
+      // keeps running it. Wait for its completion notification instead.
+      if (target === "jira" && isUnconfirmedSyncError(error)) {
+        markJiraSyncPending(projectId);
+        toast.info(
+          "Jira sync is still running in the background — you'll be notified when it finishes.",
+        );
+        return;
+      }
       toast.error(getErrorMessage(error, `Failed to sync to ${targetLabel}.`));
     } finally {
       setReleasing(false);

@@ -20,6 +20,8 @@ import type { Notification } from "@/types/notification";
 import { useNotificationSocket } from "@/hooks/useNotificationSocket";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { invalidateTagsForNotification } from "@/hooks/notificationInvalidation";
+import { resolvePendingJiraSync } from "@/features/ProjectWorkspace/Sync/pendingJiraSync";
+import { toast } from "@/lib/toast";
 import {
   isNoChangesExplanationSeen,
   markNoChangesExplanationSeen,
@@ -133,6 +135,15 @@ export function useNotifications() {
       // one server-side data change no project task frame covers. Without it
       // the TAP Sync count stays stale until a reload.
       invalidateTagsForNotification(dispatch, notification);
+
+      // Settles a Jira sync whose request dropped before the backend answered
+      // (see SyncTray) — this notification is the sync's real outcome.
+      const pendingJiraSync = resolvePendingJiraSync(notification);
+      if (pendingJiraSync === "completed") {
+        toast.success(notification.message);
+      } else if (pendingJiraSync === "failed") {
+        toast.error(notification.message);
+      }
 
       const explanation = extractNoChangesExplanation(notification);
       if (explanation && !isNoChangesExplanationSeen(notification.id)) {
