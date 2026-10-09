@@ -171,6 +171,10 @@ const jiraSyncApi = baseApi.injectEndpoints({
         method: "POST",
         body: { modules },
       }),
+      // The sync runs inside the request, so a gateway timeout (502/504) does
+      // not mean it failed — the backend keeps going. The caller reports
+      // those as "still in progress" instead of the shared error toast.
+      extraOptions: { suppressToastFor: [502, 504] },
       transformResponse: (response: JiraSyncExecuteApiResponse) =>
         response.data,
       // Also invalidate the tree — a successful sync flips is_jira_synced on

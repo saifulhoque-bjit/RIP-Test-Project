@@ -288,6 +288,15 @@ export function SyncTray({
         );
       }
     } catch (error) {
+      // A gateway timeout only means the response took too long; the Jira
+      // sync keeps running on the backend, so don't report it as a failure.
+      const status = (error as { status?: unknown } | null)?.status;
+      if (target === "jira" && (status === 502 || status === 504)) {
+        toast.info(
+          "Jira sync is taking longer than expected and is still running in the background. Check the sync history for the final result.",
+        );
+        return;
+      }
       toast.error(getErrorMessage(error, `Failed to sync to ${targetLabel}.`));
     } finally {
       setReleasing(false);
