@@ -334,6 +334,9 @@ export function useFileUpload({
   };
 
   const handleRemoveUploadFile = (index: number): void => {
+    // The files are already in flight — removing one from the list would not
+    // stop its upload/ingestion, so removal is blocked until the request ends.
+    if (isUploading) return;
     setUploadModalFiles((prev) => {
       const removedFile = prev[index];
       const updated = prev.filter((_, i) => i !== index);
