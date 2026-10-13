@@ -54,7 +54,8 @@ export default function FileDragDrop({
       <input
         ref={inputRef}
         type="file"
-        multiple
+        // A source-code run ingests a single ZIP archive.
+        multiple={uploadScenario !== "codebase-initial"}
         accept={acceptValue}
         onChange={handleInputChange}
         disabled={isDisabledState}

@@ -122,6 +122,15 @@ export function useFileUpload({
         }
       });
 
+      // Drag & drop and repeated picks bypass the input's `multiple` flag, so
+      // the single-ZIP rule for source-code projects is enforced here too.
+      if (projectType === "source_code" && merged.length > 1) {
+        toast.error("Only one source code ZIP file can be uploaded per run.", {
+          toastId: "max-source-code-upload",
+        });
+        return prev;
+      }
+
       if (merged.length > MAX_FILES) {
         toast.error("You cannot upload more than 20 files at a time.", {
           toastId: "max-file-upload",
