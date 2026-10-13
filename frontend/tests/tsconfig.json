@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "types": ["node"],
+    "rootDir": "..",
+    "outDir": "../.test-dist",
+    "skipLibCheck": true
+  },
+  "files": ["approveArchitectureVisibility.test.ts"]
+}
