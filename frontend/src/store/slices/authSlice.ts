@@ -171,6 +171,29 @@ const authSlice = createSlice({
       }
     },
 
+    /**
+     * Called when another tab of the same browser logged out or signed in as a
+     * different user. The HttpOnly auth cookies are shared across tabs, so this
+     * tab's session is gone; clear only this tab's state and sessionStorage.
+     * localStorage is left alone — it now belongs to the other tab's session.
+     */
+    endSessionFromOtherTab(state) {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.isLoading = false;
+      state.accessToken = null;
+      state.refreshToken = null;
+      state.cognitoUsername = null;
+
+      try {
+        sessionStorage.removeItem(SESSION_TOKEN_KEY);
+        sessionStorage.removeItem(SESSION_REFRESH_TOKEN_KEY);
+        sessionStorage.removeItem(SESSION_COGNITO_USERNAME_KEY);
+      } catch {
+        /* ignore */
+      }
+    },
+
     setAuthLoading(state, action: PayloadAction<boolean>) {
       state.isLoading = action.payload;
     },
@@ -205,6 +228,7 @@ const authSlice = createSlice({
 export const {
   setAuthenticated,
   setUnauthenticated,
+  endSessionFromOtherTab,
   setAuthLoading,
   setAccessToken,
 } = authSlice.actions;
