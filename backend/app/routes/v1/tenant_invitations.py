@@ -190,6 +190,11 @@ async def invite_user(
     sub = await cognito.admin_get_user_sub(email=body.email)
     if sub is None:
         sub = await cognito.admin_invite_user(email=body.email, name=body.name)
+    else:
+        # A surviving identity (e.g. from a revoked earlier invite) still
+        # carries the previous invitee's name, which login reads from the
+        # id_token for the profile display name — overwrite it.
+        await cognito.admin_update_user_name(email=body.email, name=body.name)
 
     invitation, token = invitation_service.create(
         tenant_id=tenant_id,

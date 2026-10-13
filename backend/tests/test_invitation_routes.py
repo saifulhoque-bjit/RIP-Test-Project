@@ -141,6 +141,7 @@ class TestInviteBySuperAdmin:
 
         mock_cognito = MagicMock()
         mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
+        mock_cognito.admin_update_user_name = AsyncMock()
         mock_cognito.admin_invite_user = AsyncMock()
 
         with (
@@ -167,6 +168,47 @@ class TestInviteBySuperAdmin:
         mock_cognito.admin_invite_user.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_reused_cognito_identity_gets_invitee_name(self) -> None:
+        """Re-inviting an email whose Cognito identity survived (e.g. a revoked
+        earlier invite) must overwrite the identity's ``name`` attribute —
+        login builds the profile display name from the id_token ``name``
+        claim, so leaving it stale shows the previous person's name."""
+        tenant = _make_tenant()
+        invitation = _make_invitation(tenant=tenant)
+        admin_user = _make_super_admin()
+
+        mock_cognito = MagicMock()
+        mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
+        mock_cognito.admin_update_user_name = AsyncMock()
+        mock_cognito.admin_invite_user = AsyncMock()
+        mock_cognito.admin_update_user_name = AsyncMock()
+
+        with (
+            patch(
+                "app.routes.v1.tenant_invitations.InvitationService.validate_invite_target",
+                return_value=tenant,
+            ),
+            patch(
+                "app.routes.v1.tenant_invitations.InvitationService.create",
+                return_value=(invitation, "raw-token-123"),
+            ),
+            patch("app.routes.v1.tenant_invitations.CognitoAuthService", return_value=mock_cognito),
+            patch("app.routes.v1.tenant_invitations.EmailService.send_invitation"),
+        ):
+            await invite_user(
+                tenant_id=tenant.id,
+                body=InvitationCreateRequest(
+                    email="invitee@example.com", name="New Name", role=ROLE_ADMIN
+                ),
+                uow=MagicMock(),
+                current_user=admin_user,
+            )
+
+        mock_cognito.admin_update_user_name.assert_awaited_once_with(
+            email="invitee@example.com", name="New Name"
+        )
+
+    @pytest.mark.asyncio
     async def test_forbidden_to_invite_as_member(self) -> None:
         """A super_admin may never invite as 'member' — that's a Client
         Admin's responsibility within their own tenant."""
@@ -175,6 +217,7 @@ class TestInviteBySuperAdmin:
 
         mock_cognito = MagicMock()
         mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
+        mock_cognito.admin_update_user_name = AsyncMock()
 
         with patch(
             "app.routes.v1.tenant_invitations.CognitoAuthService", return_value=mock_cognito
@@ -201,6 +244,7 @@ class TestInviteBySuperAdmin:
 
         mock_cognito = MagicMock()
         mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
+        mock_cognito.admin_update_user_name = AsyncMock()
 
         with patch(
             "app.routes.v1.tenant_invitations.CognitoAuthService", return_value=mock_cognito
@@ -228,6 +272,7 @@ class TestInviteBySuperAdmin:
 
         mock_cognito = MagicMock()
         mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
+        mock_cognito.admin_update_user_name = AsyncMock()
         mock_cognito.admin_invite_user = AsyncMock()
 
         with (
@@ -319,6 +364,7 @@ class TestInviteByClientAdmin:
 
         mock_cognito = MagicMock()
         mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
+        mock_cognito.admin_update_user_name = AsyncMock()
 
         with (
             patch(
