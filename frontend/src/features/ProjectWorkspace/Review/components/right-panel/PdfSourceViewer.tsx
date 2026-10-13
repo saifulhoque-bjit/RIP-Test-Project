@@ -121,6 +121,11 @@ export default function PdfSourceViewer({
   const pageDimensionsRef = useRef<Record<number, { w: number; h: number }>>(
     {},
   );
+  // Mirrors pageDimensionsRef in state so a page that finishes loading after
+  // the target page re-renders its highlights with its own scale factor.
+  const [pageDimensions, setPageDimensions] = useState<
+    Record<number, { w: number; h: number }>
+  >({});
   const dragRef = useRef<{
     coordinateIndex: number;
     page: number;
@@ -447,9 +452,9 @@ export default function PdfSourceViewer({
           {Array.from({ length: numPages }, (_, i) => {
             const pageIndex = i + 1;
             const isTargetPage = pageIndex === safePageNumber;
-            const pageDimensions = pageDimensionsRef.current[pageIndex];
-            const pageScaleFactor = pageDimensions
-              ? renderedPageWidth / pageDimensions.w
+            const dimensions = pageDimensions[pageIndex];
+            const pageScaleFactor = dimensions
+              ? renderedPageWidth / dimensions.w
               : 1;
             const pageBoxes = boxes
               .map((item, index) => ({ item, index }))
@@ -480,10 +485,22 @@ export default function PdfSourceViewer({
                     renderTextLayer={false}
                     renderAnnotationLayer={false}
                     onLoadSuccess={(page) => {
-                      pageDimensionsRef.current[pageIndex] = {
+                      const loaded = {
                         w: page.originalWidth,
                         h: page.originalHeight,
                       };
+                      pageDimensionsRef.current[pageIndex] = loaded;
+                      setPageDimensions((prev) => {
+                        const current = prev[pageIndex];
+                        if (
+                          current &&
+                          current.w === loaded.w &&
+                          current.h === loaded.h
+                        ) {
+                          return prev;
+                        }
+                        return { ...prev, [pageIndex]: loaded };
+                      });
                       if (isTargetPage) {
                         setTargetPageReady(true);
                       }
