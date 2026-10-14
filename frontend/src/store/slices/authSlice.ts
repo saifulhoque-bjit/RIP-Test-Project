@@ -171,6 +171,29 @@ const authSlice = createSlice({
       }
     },
 
+    /**
+     * Called when another tab of this browser logged out or signed in as a
+     * different account. Clears this tab's auth state and its own
+     * sessionStorage tokens, but leaves the shared localStorage profile alone
+     * — it now belongs to the other tab's session.
+     */
+    setSessionReplacedElsewhere(state) {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.isLoading = false;
+      state.accessToken = null;
+      state.refreshToken = null;
+      state.cognitoUsername = null;
+
+      try {
+        sessionStorage.removeItem(SESSION_TOKEN_KEY);
+        sessionStorage.removeItem(SESSION_REFRESH_TOKEN_KEY);
+        sessionStorage.removeItem(SESSION_COGNITO_USERNAME_KEY);
+      } catch {
+        /* ignore */
+      }
+    },
+
     setAuthLoading(state, action: PayloadAction<boolean>) {
       state.isLoading = action.payload;
     },
@@ -205,6 +228,7 @@ const authSlice = createSlice({
 export const {
   setAuthenticated,
   setUnauthenticated,
+  setSessionReplacedElsewhere,
   setAuthLoading,
   setAccessToken,
 } = authSlice.actions;
