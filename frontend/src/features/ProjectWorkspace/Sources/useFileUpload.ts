@@ -334,6 +334,9 @@ export function useFileUpload({
   };
 
   const handleRemoveUploadFile = (index: number): void => {
+    // The request already carries every queued file; removing one mid-upload
+    // would only hide it from the list while it is still ingested.
+    if (isUploading) return;
     setUploadModalFiles((prev) => {
       const removedFile = prev[index];
       const updated = prev.filter((_, i) => i !== index);
