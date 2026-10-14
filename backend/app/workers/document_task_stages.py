@@ -810,10 +810,14 @@ def _run_source_module_feature_generation_task(
             exc,
         )
         if self.request.retries >= self.max_retries:
+            # A message-less exception (e.g. TimeoutError()) stringifies to "",
+            # which _add_source_ingestion_error drops — the run would end up
+            # failed with no reason for the Pipelines "Error details" action.
+            error_detail = str(exc) or type(exc).__name__
             _mark_sources_status(
                 source_ids=source_ids,
                 status=SOURCE_STATUS_FAILED,
-                error=str(exc),
+                error=error_detail,
                 stage="modules_and_features.generation.failed",
                 project_id=project_id,
                 task_db_id=task_db_id,
@@ -822,25 +826,25 @@ def _run_source_module_feature_generation_task(
                 source_ids=source_ids,
                 fields={"status": SourceIngestionStatus.FAILED.value},
             )
-            _add_source_ingestion_error(source_ids=source_ids, error=str(exc))
+            _add_source_ingestion_error(source_ids=source_ids, error=error_detail)
             _notify_module_feature_status(
                 project_id=project_id,
                 status=SourceIngestionStatus.FAILED.value,
                 is_regeneration=False,
-                error=str(exc),
+                error=error_detail,
             )
             record_activity(
                 project_id=UUID(project_id),
                 activity_type=ActivityType.RFP_MODULES_GENERATION_FAILED,
                 summary=SUMMARY_ACTIVITY_RFP_MODULES_GENERATION_FAILED,
-                message=MSG_ACTIVITY_RFP_MODULES_GENERATION_FAILED.format(error=str(exc)[:200]),
+                message=MSG_ACTIVITY_RFP_MODULES_GENERATION_FAILED.format(error=error_detail[:200]),
                 actor_user_id=resolve_actor_from_task(task_db_id),
-                data={"source_ids": source_ids, "error": str(exc)},
+                data={"source_ids": source_ids, "error": error_detail},
             )
             return {
                 "project_id": project_id,
                 "status": SOURCE_STATUS_FAILED,
-                "error": str(exc),
+                "error": error_detail,
             }
 
         retry_num = self.request.retries + 1
