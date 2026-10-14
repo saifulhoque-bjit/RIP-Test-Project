@@ -41,6 +41,7 @@ import {
   mapTreeData,
   resolveActiveSelectedId,
 } from "@/features/ProjectWorkspace/Review/utils/userStoryTree";
+import { shouldShowApproveArchitecture } from "@/features/ProjectWorkspace/Review/utils/architectureApprovalVisibility";
 import MiddlePanelLayout from "./MiddlePanelLayout";
 import { getEffectiveChangeType } from "@/utils/changeType";
 
@@ -434,12 +435,12 @@ export default function ModuleFeatureStoryWorkspace({
   const canApproveStory = enableApprove && canApproveStoryForSelection;
   const showEmptyState =
     treeData.length === 0 || (approvedOnly && filteredTreeData.length === 0);
-  const showApproveAllModulesBtn =
-    !areAllApprovedForMod &&
-    projectType === "rfp" &&
-    !hasUserStories &&
-    !isProjectBusy &&
-    !hasPendingFeedbackChange;
+  const showApproveAllModulesBtn = shouldShowApproveArchitecture({
+    projectType,
+    hasUserStories,
+    isProjectBusy,
+    hasPendingFeedbackChange,
+  });
   const showModulesFeedbackBtn =
     !areAllApprovedForMod && projectType === "rfp" && !hasUserStories;
 
