@@ -121,6 +121,13 @@ export default function PdfSourceViewer({
   const pageDimensionsRef = useRef<Record<number, { w: number; h: number }>>(
     {},
   );
+  // Mirrors pageDimensionsRef in state so that every page reporting its size
+  // re-renders the highlights. pdf.js loads pages in no fixed order; a page
+  // that finished after the last re-render kept a scale factor of 1, which
+  // drew its highlights at raw PDF-point size, usually off its own page.
+  const [pageDimensions, setPageDimensions] = useState<
+    Record<number, { w: number; h: number }>
+  >({});
   const dragRef = useRef<{
     coordinateIndex: number;
     page: number;
@@ -447,9 +454,9 @@ export default function PdfSourceViewer({
           {Array.from({ length: numPages }, (_, i) => {
             const pageIndex = i + 1;
             const isTargetPage = pageIndex === safePageNumber;
-            const pageDimensions = pageDimensionsRef.current[pageIndex];
-            const pageScaleFactor = pageDimensions
-              ? renderedPageWidth / pageDimensions.w
+            const dimensions = pageDimensions[pageIndex];
+            const pageScaleFactor = dimensions
+              ? renderedPageWidth / dimensions.w
               : 1;
             const pageBoxes = boxes
               .map((item, index) => ({ item, index }))
@@ -480,10 +487,22 @@ export default function PdfSourceViewer({
                     renderTextLayer={false}
                     renderAnnotationLayer={false}
                     onLoadSuccess={(page) => {
-                      pageDimensionsRef.current[pageIndex] = {
+                      const loaded = {
                         w: page.originalWidth,
                         h: page.originalHeight,
                       };
+                      pageDimensionsRef.current[pageIndex] = loaded;
+                      setPageDimensions((prev) => {
+                        const known = prev[pageIndex];
+                        if (
+                          known &&
+                          known.w === loaded.w &&
+                          known.h === loaded.h
+                        ) {
+                          return prev;
+                        }
+                        return { ...prev, [pageIndex]: loaded };
+                      });
                       if (isTargetPage) {
                         setTargetPageReady(true);
                       }
