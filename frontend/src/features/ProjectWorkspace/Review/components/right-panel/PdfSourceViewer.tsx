@@ -121,6 +121,10 @@ export default function PdfSourceViewer({
   const pageDimensionsRef = useRef<Record<number, { w: number; h: number }>>(
     {},
   );
+  // Bumped whenever a page reports its dimensions. The ref alone does not
+  // re-render, so a page that finished loading after the target page would
+  // keep drawing its highlights with an unscaled (1:1) factor.
+  const [, setLoadedPageDimensionsCount] = useState(0);
   const dragRef = useRef<{
     coordinateIndex: number;
     page: number;
@@ -484,6 +488,7 @@ export default function PdfSourceViewer({
                         w: page.originalWidth,
                         h: page.originalHeight,
                       };
+                      setLoadedPageDimensionsCount((count) => count + 1);
                       if (isTargetPage) {
                         setTargetPageReady(true);
                       }
