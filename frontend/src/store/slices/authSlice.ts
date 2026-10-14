@@ -17,6 +17,8 @@ interface AuthState {
 const SESSION_TOKEN_KEY = "rip_access_token";
 const SESSION_REFRESH_TOKEN_KEY = "rip_refresh_token";
 const SESSION_COGNITO_USERNAME_KEY = "rip_cognito_username";
+/** localStorage key shared by every tab — other tabs watch it to follow logins/logouts. */
+export const AUTH_USER_STORAGE_KEY = "authUser";
 
 function loadAccessToken(): string | null {
   try {
@@ -48,7 +50,7 @@ function loadAuthState(): Omit<
   "accessToken" | "refreshToken" | "cognitoUsername"
 > {
   try {
-    const stored = localStorage.getItem("authUser");
+    const stored = localStorage.getItem(AUTH_USER_STORAGE_KEY);
     if (stored) {
       const user: AuthUser = JSON.parse(stored);
       return {
@@ -58,7 +60,7 @@ function loadAuthState(): Omit<
       };
     }
   } catch {
-    localStorage.removeItem("authUser");
+    localStorage.removeItem(AUTH_USER_STORAGE_KEY);
   }
   return { user: null, isAuthenticated: false, isLoading: false };
 }
@@ -143,11 +145,11 @@ const authSlice = createSlice({
       if (action.payload) {
         const { id, displayName, roles, permissions, email } = action.payload;
         localStorage.setItem(
-          "authUser",
+          AUTH_USER_STORAGE_KEY,
           JSON.stringify({ id, displayName, roles, permissions, email }),
         );
       } else {
-        localStorage.removeItem("authUser");
+        localStorage.removeItem(AUTH_USER_STORAGE_KEY);
       }
     },
 
@@ -161,7 +163,30 @@ const authSlice = createSlice({
       state.cognitoUsername = null;
 
       // Clear persisted auth data
-      localStorage.removeItem("authUser");
+      localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+      try {
+        sessionStorage.removeItem(SESSION_TOKEN_KEY);
+        sessionStorage.removeItem(SESSION_REFRESH_TOKEN_KEY);
+        sessionStorage.removeItem(SESSION_COGNITO_USERNAME_KEY);
+      } catch {
+        /* ignore */
+      }
+    },
+
+    /**
+     * Called when another tab of this browser logged out or signed in as a
+     * different account. Clears this tab's in-memory and sessionStorage auth,
+     * but leaves the shared localStorage profile alone — it now belongs to the
+     * other tab's session.
+     */
+    endSessionFromOtherTab(state) {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.isLoading = false;
+      state.accessToken = null;
+      state.refreshToken = null;
+      state.cognitoUsername = null;
+
       try {
         sessionStorage.removeItem(SESSION_TOKEN_KEY);
         sessionStorage.removeItem(SESSION_REFRESH_TOKEN_KEY);
@@ -205,6 +230,7 @@ const authSlice = createSlice({
 export const {
   setAuthenticated,
   setUnauthenticated,
+  endSessionFromOtherTab,
   setAuthLoading,
   setAccessToken,
 } = authSlice.actions;
