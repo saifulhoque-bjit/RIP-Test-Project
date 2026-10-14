@@ -190,6 +190,10 @@ async def invite_user(
     sub = await cognito.admin_get_user_sub(email=body.email)
     if sub is None:
         sub = await cognito.admin_invite_user(email=body.email, name=body.name)
+    else:
+        # A leftover identity (e.g. from a revoked invitation) keeps the name
+        # it was created with — overwrite it so the ID token carries this one.
+        await cognito.admin_update_user_name(email=body.email, name=body.name)
 
     invitation, token = invitation_service.create(
         tenant_id=tenant_id,

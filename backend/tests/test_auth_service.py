@@ -687,6 +687,34 @@ class TestAdminDeleteUser:
                 await service.admin_delete_user(email="user@example.com")
 
 
+class TestAdminUpdateUserName:
+    @pytest.fixture
+    def service(self) -> CognitoAuthService:
+        return CognitoAuthService()
+
+    @pytest.mark.asyncio
+    async def test_overwrites_name_attribute(self, service: CognitoAuthService) -> None:
+        cognito = _mock_cognito("admin_update_user_attributes", return_value={})
+        with patch("app.services.auth_service.boto3.client", return_value=cognito):
+            await service.admin_update_user_name(email="reinvited@example.com", name="New Name")
+
+        kwargs = cognito.admin_update_user_attributes.call_args.kwargs
+        assert kwargs["Username"] == "reinvited-example-com"
+        assert kwargs["UserAttributes"] == [{"Name": "name", "Value": "New Name"}]
+
+    @pytest.mark.asyncio
+    async def test_unknown_cognito_error_raises_cognito_error(
+        self, service: CognitoAuthService
+    ) -> None:
+        cognito = _mock_cognito(
+            "admin_update_user_attributes",
+            side_effect=_client_error("InternalErrorException", "AWS error"),
+        )
+        with patch("app.services.auth_service.boto3.client", return_value=cognito):
+            with pytest.raises(CognitoError):
+                await service.admin_update_user_name(email="user@example.com", name="New Name")
+
+
 # ── CognitoAuthService.forgot_password / confirm_forgot_password ──────────
 
 

@@ -612,6 +612,34 @@ class CognitoAuthService:
             )
         )
 
+    async def admin_update_user_name(self, *, email: str, name: str) -> None:
+        """Overwrite the ``name`` attribute of an existing Cognito user.
+
+        Used when an invitation reuses a Cognito identity that already
+        exists for the email (see ``invite_user``) — without this, the
+        identity keeps the name it was originally created with, and that
+        stale name is what the ID token's ``name`` claim (and therefore the
+        frontend profile) shows after the invitee logs in.
+        """
+        username = _derive_cognito_username(email)
+
+        def _admin_update_user_attributes() -> None:
+            client = _cognito_client()
+            client.admin_update_user_attributes(
+                UserPoolId=settings.AWS_COGNITO_USER_POOL_ID,
+                Username=username,
+                UserAttributes=[{"Name": "name", "Value": name}],
+            )
+
+        try:
+            await asyncio.to_thread(_admin_update_user_attributes)
+        except ClientError as exc:
+            _map_cognito_error(exc, "admin_update_user_attributes")
+        except BotoCoreError as exc:
+            raise CognitoError(MSG_AUTH_AWS_UNAVAILABLE.format(detail=exc)) from exc
+
+        logger.info("Cognito user name updated, email=<redacted>")
+
     async def admin_set_user_password(
         self, *, email: str, password: str, permanent: bool = True
     ) -> None:

@@ -142,6 +142,7 @@ class TestInviteBySuperAdmin:
         mock_cognito = MagicMock()
         mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
         mock_cognito.admin_invite_user = AsyncMock()
+        mock_cognito.admin_update_user_name = AsyncMock()
 
         with (
             patch(
@@ -165,6 +166,10 @@ class TestInviteBySuperAdmin:
             )
 
         mock_cognito.admin_invite_user.assert_not_called()
+        # The reused identity must carry the newly invited name, not the old one.
+        mock_cognito.admin_update_user_name.assert_awaited_once_with(
+            email="invitee@example.com", name="Invitee Name"
+        )
 
     @pytest.mark.asyncio
     async def test_forbidden_to_invite_as_member(self) -> None:
