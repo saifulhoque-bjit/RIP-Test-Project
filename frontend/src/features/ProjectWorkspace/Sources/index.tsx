@@ -497,6 +497,7 @@ export default function Sources() {
               isDisabledState={isDisabledState}
               uploadScenario={uploadScenario}
               acceptValue={acceptValue}
+              allowMultiple={projectType !== "source_code"}
               inputRef={inputRef}
             />
 

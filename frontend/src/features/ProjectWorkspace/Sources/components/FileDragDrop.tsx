@@ -9,6 +9,8 @@ interface FileDragDropProps {
   isDisabledState: boolean;
   uploadScenario: "rfp-initial" | "codebase-initial" | "incremental" | null;
   acceptValue: string | undefined;
+  /** False for source-code projects, which ingest a single ZIP per run. */
+  allowMultiple: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -23,6 +25,7 @@ export default function FileDragDrop({
   isDisabledState,
   uploadScenario,
   acceptValue,
+  allowMultiple,
   inputRef,
 }: FileDragDropProps) {
   return (
@@ -54,7 +57,7 @@ export default function FileDragDrop({
       <input
         ref={inputRef}
         type="file"
-        multiple
+        multiple={allowMultiple}
         accept={acceptValue}
         onChange={handleInputChange}
         disabled={isDisabledState}

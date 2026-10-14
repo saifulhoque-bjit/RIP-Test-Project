@@ -122,6 +122,15 @@ export function useFileUpload({
         }
       });
 
+      // A source-code run ingests exactly one codebase archive.
+      if (projectType === "source_code" && merged.length > 1) {
+        toast.error(
+          "Only one source code ZIP file can be uploaded per run. Remove the selected file to choose a different one.",
+          { toastId: "single-source-code-upload" },
+        );
+        return prev;
+      }
+
       if (merged.length > MAX_FILES) {
         toast.error("You cannot upload more than 20 files at a time.", {
           toastId: "max-file-upload",
