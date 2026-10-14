@@ -74,9 +74,15 @@ export function useNotificationSocket(
   callbacksRef.current = callbacks;
 
   const connect = useCallback(() => {
-    if (unmountedRef.current || !token) return;
+    if (unmountedRef.current) return;
 
-    const url = `${WS_BASE_URL}/ws/notifications?token=${encodeURIComponent(token)}`;
+    // A tab opened from another one starts with an empty sessionStorage, so
+    // it has no token here even though the user is signed in. Connect anyway:
+    // the server falls back to the HttpOnly `access_token` cookie, and closes
+    // with 4001 (no reconnect) when that is missing too.
+    const url = token
+      ? `${WS_BASE_URL}/ws/notifications?token=${encodeURIComponent(token)}`
+      : `${WS_BASE_URL}/ws/notifications`;
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
