@@ -67,9 +67,12 @@ async def accept_invitation(
     """
     invitation_service = InvitationService(uow)
     invitation = invitation_service.get_valid_by_token(token)
-    await CognitoAuthService().admin_set_user_password(
+    cognito = CognitoAuthService()
+    await cognito.admin_set_user_password(
         email=invitation.email, password=body.password, permanent=True
     )
+    # SPEC: spec-6f88a1 — the token's name claim must be this invitation's name.
+    await cognito.admin_update_user_name(email=invitation.email, name=invitation.name)
     invitation_service.accept(invitation)
 
     return ApiResponse.ok(message=MSG_INVITATION_ACCEPTED)

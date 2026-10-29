@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setAuthenticated } from "@/store/slices/authSlice";
+import { resolveDisplayName } from "@/utils/resolveDisplayName";
 import { selectIsAuthenticated } from "@/store/slices/authSlice";
 import {
   useLoginMutation,
@@ -184,7 +185,7 @@ export default function LoginPage() {
       dispatch(
         setAuthenticated({
           id: idPayload.sub,
-          displayName: idPayload.name || email,
+          displayName: resolveDisplayName(data.name, idPayload.name, email),
           email: data.email || email,
           roles: data.roles,
           permissions: data.permissions,

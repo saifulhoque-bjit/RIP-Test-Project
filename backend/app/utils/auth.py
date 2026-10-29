@@ -168,5 +168,6 @@ def attach_user_roles(tokens: TokenData, email: str) -> None:
 
         tokens.cognito_username = db_user.username or username or tokens.cognito_username
         tokens.email = db_user.email
+        tokens.name = db_user.name  # SPEC: spec-6f88a1
         tokens.roles = [r.name for r in db_user.roles]
         tokens.permissions = [p.name for r in db_user.roles for p in r.permissions]
