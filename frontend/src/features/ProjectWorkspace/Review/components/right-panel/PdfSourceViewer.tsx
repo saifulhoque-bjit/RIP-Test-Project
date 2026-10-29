@@ -118,6 +118,12 @@ export default function PdfSourceViewer({
   const targetPageRef = useRef<HTMLDivElement>(null);
   const boundingBoxRef = useRef<HTMLDivElement>(null);
   const coordinatesStringRef = useRef<string>(JSON.stringify(coordinates));
+  // SPEC: spec-3a9b4b — page sizes live in state so every page's load
+  // re-renders its boxes at that page's own scale, whatever order pages load
+  // in. The ref mirrors it for the pointer handlers and the pageNumber effect.
+  const [pageDimensions, setPageDimensions] = useState<
+    Record<number, { w: number; h: number }>
+  >({});
   const pageDimensionsRef = useRef<Record<number, { w: number; h: number }>>(
     {},
   );
@@ -447,10 +453,13 @@ export default function PdfSourceViewer({
           {Array.from({ length: numPages }, (_, i) => {
             const pageIndex = i + 1;
             const isTargetPage = pageIndex === safePageNumber;
-            const pageDimensions = pageDimensionsRef.current[pageIndex];
-            const pageScaleFactor = pageDimensions
-              ? renderedPageWidth / pageDimensions.w
-              : 1;
+            // SPEC: spec-3a9b4b — no scale until this page's size is known,
+            // so no box is drawn at a fallback scale of 1.
+            const thisPageDimensions = pageDimensions[pageIndex];
+            const pageScaleFactor =
+              thisPageDimensions && thisPageDimensions.w > 0
+                ? renderedPageWidth / thisPageDimensions.w
+                : null;
             const pageBoxes = boxes
               .map((item, index) => ({ item, index }))
               .filter(({ item }) => item.page === pageIndex);
@@ -480,10 +489,18 @@ export default function PdfSourceViewer({
                     renderTextLayer={false}
                     renderAnnotationLayer={false}
                     onLoadSuccess={(page) => {
-                      pageDimensionsRef.current[pageIndex] = {
+                      const dims = {
                         w: page.originalWidth,
                         h: page.originalHeight,
                       };
+                      pageDimensionsRef.current[pageIndex] = dims;
+                      setPageDimensions((prev) => {
+                        const known = prev[pageIndex];
+                        if (known && known.w === dims.w && known.h === dims.h) {
+                          return prev;
+                        }
+                        return { ...prev, [pageIndex]: dims };
+                      });
                       if (isTargetPage) {
                         setTargetPageReady(true);
                       }
@@ -491,6 +508,7 @@ export default function PdfSourceViewer({
                   />
 
                   {showBoundingBox &&
+                    pageScaleFactor !== null &&
                     pageBoxes.map(({ item, index }) => {
                       const isSelected = index === selectedCoordinateIndex;
                       const isSelectedPage = pageIndex === selectedBoxPage;
