@@ -9,9 +9,10 @@ npm run dev       # Vite dev server on http://localhost:5173
 npm run build     # tsc -b && vite build  ← the real verification gate
 npm run lint      # eslint .
 npm run preview   # serve the production build from dist/
+npm test          # vitest run — unit tests (`src/**/*.test.ts`)
 ```
 
-There is **no test runner** in this repo (no vitest/jest, no `*.test.*` files). `npm run build` is what catches regressions: `tsconfig.app.json` sets `strict`, `noUnusedLocals`, `noUnusedParameters`, and `erasableSyntaxOnly`, so an unused variable or an `enum` **fails the build**, not just lint. Always run `npm run build` before claiming a change is done.
+Unit tests are few (vitest, pure helpers such as `Review/utils/reviewActionVisibility.ts`); `npm run build` is what catches most regressions: `tsconfig.app.json` sets `strict`, `noUnusedLocals`, `noUnusedParameters`, and `erasableSyntaxOnly`, so an unused variable or an `enum` **fails the build**, not just lint. Always run `npm run build` before claiming a change is done.
 
 Env (`.env`): `VITE_API_BASE_URL` (e.g. `http://localhost:8000/api/v1`), `VITE_CDN_URL`, optional `VITE_WS_BASE_URL`. WebSocket URLs are derived from `VITE_API_BASE_URL` in `src/lib/wsBaseUrl.ts` unless `VITE_WS_BASE_URL` overrides.
 
