@@ -121,6 +121,7 @@ class TestInviteBySuperAdmin:
         mock_cognito.admin_invite_user.assert_called_once_with(
             email="invitee@example.com", name="Invitee Name"
         )
+        mock_cognito.admin_update_user_name.assert_not_called()
         mock_create.assert_called_once_with(
             tenant_id=tenant.id,
             email="invitee@example.com",
@@ -141,6 +142,7 @@ class TestInviteBySuperAdmin:
 
         mock_cognito = MagicMock()
         mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
+        mock_cognito.admin_update_user_name = AsyncMock(return_value=None)
         mock_cognito.admin_invite_user = AsyncMock()
 
         with (
@@ -165,6 +167,10 @@ class TestInviteBySuperAdmin:
             )
 
         mock_cognito.admin_invite_user.assert_not_called()
+        # The reused identity takes this invitation's name (spec-6f88a1).
+        mock_cognito.admin_update_user_name.assert_called_once_with(
+            email="invitee@example.com", name="Invitee Name"
+        )
 
     @pytest.mark.asyncio
     async def test_forbidden_to_invite_as_member(self) -> None:
@@ -175,6 +181,7 @@ class TestInviteBySuperAdmin:
 
         mock_cognito = MagicMock()
         mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
+        mock_cognito.admin_update_user_name = AsyncMock(return_value=None)
 
         with patch(
             "app.routes.v1.tenant_invitations.CognitoAuthService", return_value=mock_cognito
@@ -201,6 +208,7 @@ class TestInviteBySuperAdmin:
 
         mock_cognito = MagicMock()
         mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
+        mock_cognito.admin_update_user_name = AsyncMock(return_value=None)
 
         with patch(
             "app.routes.v1.tenant_invitations.CognitoAuthService", return_value=mock_cognito
@@ -228,6 +236,7 @@ class TestInviteBySuperAdmin:
 
         mock_cognito = MagicMock()
         mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
+        mock_cognito.admin_update_user_name = AsyncMock(return_value=None)
         mock_cognito.admin_invite_user = AsyncMock()
 
         with (
@@ -319,6 +328,7 @@ class TestInviteByClientAdmin:
 
         mock_cognito = MagicMock()
         mock_cognito.admin_get_user_sub = AsyncMock(return_value="sub-existing")
+        mock_cognito.admin_update_user_name = AsyncMock(return_value=None)
 
         with (
             patch(
@@ -634,6 +644,7 @@ class TestAcceptInvitation:
 
         mock_cognito = MagicMock()
         mock_cognito.admin_set_user_password = AsyncMock(return_value=None)
+        mock_cognito.admin_update_user_name = AsyncMock(return_value=None)
 
         with (
             patch(
@@ -656,5 +667,8 @@ class TestAcceptInvitation:
         assert result.success is True
         mock_cognito.admin_set_user_password.assert_called_once_with(
             email=invitation.email, password="Sup3rSecret1!", permanent=True
+        )
+        mock_cognito.admin_update_user_name.assert_called_once_with(
+            email=invitation.email, name=invitation.name
         )
         mock_accept.assert_called_once_with(invitation)

@@ -642,6 +642,43 @@ class TestAdminSetUserPassword:
                 )
 
 
+class TestAdminUpdateUserName:
+    """spec-6f88a1: a reused Cognito identity must take the invitation's name."""
+
+    @pytest.fixture
+    def service(self) -> CognitoAuthService:
+        return CognitoAuthService()
+
+    @pytest.mark.asyncio
+    async def test_overwrites_name_attribute(self, service: CognitoAuthService) -> None:
+        cognito = _mock_cognito("admin_update_user_attributes", return_value={})
+        with patch("app.services.auth_service.boto3.client", return_value=cognito):
+            await service.admin_update_user_name(email="invitee@example.com", name="New Name")
+
+        kwargs = cognito.admin_update_user_attributes.call_args.kwargs
+        assert kwargs["Username"] == "invitee-example-com"
+        assert kwargs["UserAttributes"] == [{"Name": "name", "Value": "New Name"}]
+
+    @pytest.mark.asyncio
+    async def test_missing_user_raises_unauthorized(self, service: CognitoAuthService) -> None:
+        cognito = _mock_cognito(
+            "admin_update_user_attributes",
+            side_effect=_client_error("UserNotFoundException"),
+        )
+        with patch("app.services.auth_service.boto3.client", return_value=cognito):
+            with pytest.raises(UnauthorizedError):
+                await service.admin_update_user_name(email="gone@example.com", name="X")
+
+    @pytest.mark.asyncio
+    async def test_boto_infrastructure_error_raises_cognito_error(
+        self, service: CognitoAuthService
+    ) -> None:
+        cognito = _mock_cognito("admin_update_user_attributes", side_effect=BotoCoreError())
+        with patch("app.services.auth_service.boto3.client", return_value=cognito):
+            with pytest.raises(CognitoError, match="AWS service unavailable"):
+                await service.admin_update_user_name(email="a@example.com", name="A")
+
+
 class TestAdminDeleteUser:
     @pytest.fixture
     def service(self) -> CognitoAuthService:
