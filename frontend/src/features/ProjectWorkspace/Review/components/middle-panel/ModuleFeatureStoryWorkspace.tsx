@@ -41,6 +41,10 @@ import {
   mapTreeData,
   resolveActiveSelectedId,
 } from "@/features/ProjectWorkspace/Review/utils/userStoryTree";
+import {
+  shouldShowStage1Approve,
+  shouldShowStage1ModulesFeedback,
+} from "@/features/ProjectWorkspace/Review/utils/reviewActionVisibility";
 import MiddlePanelLayout from "./MiddlePanelLayout";
 import { getEffectiveChangeType } from "@/utils/changeType";
 
@@ -117,7 +121,6 @@ export default function ModuleFeatureStoryWorkspace({
     treeItems,
     stage,
     isTreeLoading,
-    areAllApprovedForMod,
     openComposeFeedback,
     setSelectedStoryText,
   } = useReviewState();
@@ -434,14 +437,16 @@ export default function ModuleFeatureStoryWorkspace({
   const canApproveStory = enableApprove && canApproveStoryForSelection;
   const showEmptyState =
     treeData.length === 0 || (approvedOnly && filteredTreeData.length === 0);
-  const showApproveAllModulesBtn =
-    !areAllApprovedForMod &&
-    projectType === "rfp" &&
-    !hasUserStories &&
-    !isProjectBusy &&
-    !hasPendingFeedbackChange;
-  const showModulesFeedbackBtn =
-    !areAllApprovedForMod && projectType === "rfp" && !hasUserStories;
+  const showApproveAllModulesBtn = shouldShowStage1Approve({
+    projectType,
+    hasUserStories,
+    isProjectBusy,
+    hasPendingFeedbackChange,
+  });
+  const showModulesFeedbackBtn = shouldShowStage1ModulesFeedback({
+    projectType,
+    hasUserStories,
+  });
 
   return (
     <>
