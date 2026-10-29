@@ -121,6 +121,12 @@ export default function PdfSourceViewer({
   const pageDimensionsRef = useRef<Record<number, { w: number; h: number }>>(
     {},
   );
+  // Mirrors pageDimensionsRef in state: react-pdf reports a page's size from
+  // its own effect, so only a state update re-renders this viewer and draws
+  // the boxes of a page that finishes loading after the selected one.
+  const [pageDimensionsByPage, setPageDimensionsByPage] = useState<
+    Record<number, { w: number; h: number }>
+  >({});
   const dragRef = useRef<{
     coordinateIndex: number;
     page: number;
@@ -447,13 +453,18 @@ export default function PdfSourceViewer({
           {Array.from({ length: numPages }, (_, i) => {
             const pageIndex = i + 1;
             const isTargetPage = pageIndex === safePageNumber;
-            const pageDimensions = pageDimensionsRef.current[pageIndex];
-            const pageScaleFactor = pageDimensions
+            const pageDimensions = pageDimensionsByPage[pageIndex];
+            const hasPageDimensions = !!pageDimensions?.w;
+            const pageScaleFactor = hasPageDimensions
               ? renderedPageWidth / pageDimensions.w
               : 1;
-            const pageBoxes = boxes
-              .map((item, index) => ({ item, index }))
-              .filter(({ item }) => item.page === pageIndex);
+            // Until the page's size is known there is no scale to place its
+            // boxes with, so draw none rather than at unscaled PDF points.
+            const pageBoxes = hasPageDimensions
+              ? boxes
+                  .map((item, index) => ({ item, index }))
+                  .filter(({ item }) => item.page === pageIndex)
+              : [];
 
             return (
               <div key={pageIndex} className="w-full">
@@ -480,10 +491,17 @@ export default function PdfSourceViewer({
                     renderTextLayer={false}
                     renderAnnotationLayer={false}
                     onLoadSuccess={(page) => {
-                      pageDimensionsRef.current[pageIndex] = {
+                      const dimensions = {
                         w: page.originalWidth,
                         h: page.originalHeight,
                       };
+                      pageDimensionsRef.current[pageIndex] = dimensions;
+                      setPageDimensionsByPage((prev) =>
+                        prev[pageIndex]?.w === dimensions.w &&
+                        prev[pageIndex]?.h === dimensions.h
+                          ? prev
+                          : { ...prev, [pageIndex]: dimensions },
+                      );
                       if (isTargetPage) {
                         setTargetPageReady(true);
                       }
