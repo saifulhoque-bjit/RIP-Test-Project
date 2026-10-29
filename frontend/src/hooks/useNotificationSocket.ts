@@ -61,6 +61,7 @@ const MAX_RECONNECT_DELAY_MS = 30_000;
 
 export function useNotificationSocket(
   token: string | null,
+  isAuthenticated: boolean,
   callbacks: NotificationSocketCallbacks,
 ) {
   const wsRef = useRef<WebSocket | null>(null);
@@ -74,9 +75,14 @@ export function useNotificationSocket(
   callbacksRef.current = callbacks;
 
   const connect = useCallback(() => {
-    if (unmountedRef.current || !token) return;
+    if (unmountedRef.current || !isAuthenticated) return;
 
-    const url = `${WS_BASE_URL}/ws/notifications?token=${encodeURIComponent(token)}`;
+    // SPEC: spec-d586c9 — the access token lives in per-tab sessionStorage, so a
+    // tab opened after login has none while the user is still logged in. Connect
+    // without ?token then; the server authenticates the access_token cookie.
+    const url = token
+      ? `${WS_BASE_URL}/ws/notifications?token=${encodeURIComponent(token)}`
+      : `${WS_BASE_URL}/ws/notifications`;
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
@@ -130,7 +136,7 @@ export function useNotificationSocket(
       // onclose fires right after onerror, reconnect handled there
       ws.close();
     };
-  }, [token]);
+  }, [token, isAuthenticated]);
 
   useEffect(() => {
     unmountedRef.current = false;
