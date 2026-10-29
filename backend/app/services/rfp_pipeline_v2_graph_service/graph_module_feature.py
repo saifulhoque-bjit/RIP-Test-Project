@@ -12,6 +12,7 @@ from typing_extensions import TypedDict
 from app.clients.llm_factory import get_llm
 from app.core import task_control
 from app.core.config import settings
+from app.core.exceptions import MissingLLMApiKeyError
 from app.core.llm_errors import NonRetryableLLMError, classify_llm_error
 from app.schemas.rfp_pipeline_v2_graph_schema import ModuleFeatureOutput
 from app.utils.cancellable_llm import (
@@ -67,12 +68,17 @@ async def node_generate(state: State) -> dict:
     model_name = opts.get("llm_model") or settings.ALT_ARCHITECT_MODEL_NAME
     api_key = opts.get("llm_api_key")
 
-    llm = get_llm(
-        provider=provider,
-        model_name=model_name,
-        temperature=settings.ALT_ARCHITECT_TEMPERATURE,
-        api_key=api_key,
-    )
+    try:
+        llm = get_llm(
+            provider=provider,
+            model_name=model_name,
+            temperature=settings.ALT_ARCHITECT_TEMPERATURE,
+            api_key=api_key,
+        )
+    except MissingLLMApiKeyError as exc:
+        raise NonRetryableLLMError(
+            classify_llm_error(exc, provider=provider), original=exc
+        ) from exc
 
     if provider == "deepseek":
         structured_llm = llm.with_structured_output(ModuleFeatureOutput, method="json_mode")
@@ -149,12 +155,17 @@ async def node_critic(state: State) -> dict:
     request_id = opts.get("request_id")
     api_key = opts.get("llm_api_key")
 
-    llm = get_llm(
-        provider=provider,
-        model_name=model_name,
-        temperature=settings.ALT_CRITIC_TEMPERATURE,
-        api_key=api_key,
-    )
+    try:
+        llm = get_llm(
+            provider=provider,
+            model_name=model_name,
+            temperature=settings.ALT_CRITIC_TEMPERATURE,
+            api_key=api_key,
+        )
+    except MissingLLMApiKeyError as exc:
+        raise NonRetryableLLMError(
+            classify_llm_error(exc, provider=provider), original=exc
+        ) from exc
 
     # messages = [
     #     SystemMessage(content=PROMPT_CRIT),

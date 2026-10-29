@@ -12,6 +12,8 @@ Usage (raise from any service or dependency):
 
 from __future__ import annotations
 
+from app.core.messages import MSG_LLM_API_KEY_MISSING
+
 
 class RIPBaseException(Exception):
     """Base exception for all application-defined errors.
@@ -122,6 +124,18 @@ class AIWorkflowError(RIPBaseException):
 
     status_code = 500
     error_code = "AI_WORKFLOW_ERROR"
+
+
+class MissingLLMApiKeyError(AIWorkflowError):
+    """Raised when a project's LLM provider has no API key to call it with.
+
+    Retrying cannot fix this, so ``classify_llm_error`` treats it as
+    non-retryable; the message tells the user where to set the key."""
+
+    error_code = "LLM_API_KEY_MISSING"
+
+    def __init__(self, provider_label: str) -> None:
+        super().__init__(MSG_LLM_API_KEY_MISSING.format(provider=provider_label))
 
 
 class JiraClientError(RIPBaseException):
