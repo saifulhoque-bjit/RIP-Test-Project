@@ -80,3 +80,36 @@ export function shouldShowStoryFeedback({
     detail.status !== "approved"
   );
 }
+
+// SPEC: spec-f6af3e
+// RFP Stage 1 ends when user stories exist, not when every module is
+// `approved`: accepting a feedback change also sets a module/feature to
+// `approved`, so per-module status can't tell whether Stage 1 was approved.
+interface Stage1ActionsVisibilityParams {
+  projectType?: string | null;
+  hasUserStories?: boolean;
+  isProjectBusy?: boolean;
+  /** A module/feature still awaits accept/reject of a feedback change — the backend refuses Stage-1 approval until it's resolved. */
+  hasPendingFeedbackChange?: boolean;
+}
+
+export function shouldShowStage1Approve({
+  projectType,
+  hasUserStories,
+  isProjectBusy,
+  hasPendingFeedbackChange,
+}: Stage1ActionsVisibilityParams): boolean {
+  return (
+    projectType === "rfp" &&
+    !hasUserStories &&
+    !isProjectBusy &&
+    !hasPendingFeedbackChange
+  );
+}
+
+export function shouldShowStage1ModulesFeedback({
+  projectType,
+  hasUserStories,
+}: Stage1ActionsVisibilityParams): boolean {
+  return projectType === "rfp" && !hasUserStories;
+}
