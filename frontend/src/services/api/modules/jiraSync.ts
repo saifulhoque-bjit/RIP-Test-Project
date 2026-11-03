@@ -171,6 +171,13 @@ const jiraSyncApi = baseApi.injectEndpoints({
         method: "POST",
         body: { modules },
       }),
+      // A gateway timeout or dropped connection doesn't mean the sync failed —
+      // the API keeps running it. SyncTray tells the user that instead
+      // (jiraSyncOutcome.ts), so the generic baseApi toast must not say
+      // "Cannot connect" / "Request timed out" next to it.
+      extraOptions: {
+        suppressToastFor: ["FETCH_ERROR", "TIMEOUT_ERROR", 504],
+      },
       transformResponse: (response: JiraSyncExecuteApiResponse) =>
         response.data,
       // Also invalidate the tree — a successful sync flips is_jira_synced on
