@@ -912,6 +912,7 @@ class SourceCodePipelineService:
                 quoted_text=quoted_text,
                 target_ids=target_ids,
                 feedback_spec=feedback_spec,
+                api_key=self.api_key,
             )
         except Exception as exc:
             return {
@@ -1284,6 +1285,7 @@ class SourceCodePipelineService:
                 prompt_dir=str(self.prompt_dir),
                 schema_dir=str(self.schema_dir),
                 archetype_dir=str(self.archetype_dir),
+                api_key=self.api_key,
             )
 
             # Execute revise on the reconstructed MFU directory
