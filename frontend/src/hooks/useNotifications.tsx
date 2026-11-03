@@ -20,6 +20,8 @@ import type { Notification } from "@/types/notification";
 import { useNotificationSocket } from "@/hooks/useNotificationSocket";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { invalidateTagsForNotification } from "@/hooks/notificationInvalidation";
+import { getFailureToast } from "@/hooks/notificationToast";
+import { toast } from "@/lib/toast";
 import {
   isNoChangesExplanationSeen,
   markNoChangesExplanationSeen,
@@ -133,6 +135,11 @@ export function useNotifications() {
       // one server-side data change no project task frame covers. Without it
       // the TAP Sync count stays stale until a reload.
       invalidateTagsForNotification(dispatch, notification);
+
+      const failure = getFailureToast(notification);
+      if (failure) {
+        toast.error(failure.title, { toastId: failure.toastId, body: failure.body });
+      }
 
       const explanation = extractNoChangesExplanation(notification);
       if (explanation && !isNoChangesExplanationSeen(notification.id)) {

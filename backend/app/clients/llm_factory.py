@@ -21,7 +21,7 @@ from typing import NamedTuple
 import httpx
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from app.core.exceptions import AIServiceError, AIWorkflowError
+from app.core.exceptions import AIServiceError, AIWorkflowError, MissingLLMApiKeyError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -173,9 +173,7 @@ def get_llm(
 
     if provider == "openai":
         if not api_key:
-            raise AIWorkflowError(
-                "OPENAI_API_KEY is not set. Please provide it to use the OpenAI provider."
-            )
+            raise MissingLLMApiKeyError("OpenAI")
         from langchain_openai import ChatOpenAI  # noqa: PLC0415
 
         logger.debug("LLM factory: openai / %s (temp=%.1f)", model_name, temperature)
@@ -189,9 +187,7 @@ def get_llm(
 
     if provider == "anthropic":
         if not api_key:
-            raise AIWorkflowError(
-                "ANTHROPIC_API_KEY is not set. Please provide it to use the Anthropic provider."
-            )
+            raise MissingLLMApiKeyError("Anthropic")
         from langchain_anthropic import ChatAnthropic  # noqa: PLC0415
 
         logger.debug("LLM factory: anthropic / %s (temp=%.1f)", model_name, temperature)
@@ -207,9 +203,7 @@ def get_llm(
 
     if provider == "google":
         if not api_key:
-            raise AIWorkflowError(
-                "GOOGLE_API_KEY is not set. Please provide it to use the Google provider."
-            )
+            raise MissingLLMApiKeyError("Google")
         from langchain_google_genai import ChatGoogleGenerativeAI  # noqa: PLC0415
 
         logger.debug("LLM factory: google / %s (temp=%.1f)", model_name, temperature)
@@ -222,9 +216,7 @@ def get_llm(
 
     if provider == "deepseek":
         if not api_key:
-            raise AIWorkflowError(
-                "DEEPSEEK_API_KEY is not set. Please provide it to use the DeepSeek provider."
-            )
+            raise MissingLLMApiKeyError("DeepSeek")
         from langchain_deepseek import ChatDeepSeek  # noqa: PLC0415
 
         logger.debug("LLM factory: deepseek / %s (temp=%.1f)", model_name, temperature)

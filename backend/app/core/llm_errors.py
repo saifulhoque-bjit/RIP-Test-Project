@@ -27,6 +27,7 @@ from enum import Enum
 
 from langchain_core.exceptions import ContextOverflowError
 
+from app.core.exceptions import MissingLLMApiKeyError
 from app.core.messages import (
     MSG_LLM_AUTHENTICATION,
     MSG_LLM_CONTENT_POLICY,
@@ -301,6 +302,15 @@ def classify_llm_error(exc: Exception, *, provider: str | None = None) -> LLMErr
     status unwrapping, permanent type/message matches, transient
     type/code/message matches, and finally a safe retryable/UNKNOWN default.
     """
+    if isinstance(exc, MissingLLMApiKeyError):
+        return LLMErrorClassification(
+            retryable=False,
+            reason=LLMErrorReason.AUTHENTICATION,
+            provider=provider,
+            message=str(exc),
+            user_message=str(exc),
+        )
+
     if isinstance(exc, ContextOverflowError):
         return LLMErrorClassification(
             retryable=False,

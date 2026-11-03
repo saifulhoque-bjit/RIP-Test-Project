@@ -401,6 +401,10 @@ MSG_LLM_CREDIT_EXHAUSTED = (
     "The AI provider account has run out of credits or quota. Please contact your "
     "administrator to top up billing before retrying this operation."
 )
+MSG_LLM_API_KEY_MISSING = (
+    "The API key for the {provider} LLM provider has not been set yet. "
+    "Please set it up from Clients & Providers settings."
+)
 MSG_LLM_AUTHENTICATION = (
     "The AI provider rejected the request due to an invalid or expired API key. "
     "Please contact your administrator to update the provider credentials."
