@@ -509,6 +509,8 @@ export default function Sources() {
                     file={file}
                     index={index}
                     onRemove={handleRemoveUploadFile}
+                    // SPEC: spec-15e112 — the queue is fixed once the upload request starts
+                    isRemoveDisabled={isDisabledState}
                     isSuccess={fileUploadSuccesses.has(file.name)}
                     errorMessage={fileUploadErrors[file.name]?.message}
                   />

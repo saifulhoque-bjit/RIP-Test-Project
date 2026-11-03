@@ -334,6 +334,9 @@ export function useFileUpload({
   };
 
   const handleRemoveUploadFile = (index: number): void => {
+    // SPEC: spec-15e112 — the request in flight already holds the files, so a
+    // removal now would hide a file that is still uploaded and ingested.
+    if (isUploading) return;
     setUploadModalFiles((prev) => {
       const removedFile = prev[index];
       const updated = prev.filter((_, i) => i !== index);
