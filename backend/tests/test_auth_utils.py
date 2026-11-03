@@ -69,6 +69,35 @@ class TestAttachUserRoles:
         assert tokens.cognito_username == "alice@example.com"
         assert tokens.email == "alice@example.com"
 
+    def test_login_returns_db_name_not_stale_token_name(self) -> None:
+        """spec-6f88a1: a reused Cognito identity can carry an earlier
+        invitee's name claim; the login response must carry the RIP name."""
+        tokens = _make_tokens()
+
+        db_user = MagicMock()
+        db_user.username = None
+        db_user.email = "client.admin@example.com"
+        db_user.name = "New Name"
+        db_user.roles = []
+
+        cm = MagicMock()
+        cm.__enter__.return_value = MagicMock()
+        cm.__exit__.return_value = None
+
+        mock_service = MagicMock()
+        mock_service.get_authenticated_user.return_value = db_user
+
+        claims = {"sub": "sub-1", "email": "client.admin@example.com", "name": "Old Name"}
+
+        with (
+            patch("app.utils.auth.decode_cognito_token", return_value=claims),
+            patch("app.utils.auth.UnitOfWork", return_value=cm),
+            patch("app.utils.auth.UserService", return_value=mock_service),
+        ):
+            attach_user_roles(tokens, "client.admin@example.com")
+
+        assert tokens.name == "New Name"
+
     def test_fallback_to_email_lookup_when_id_token_cannot_be_decoded(self) -> None:
         """sub="" (decode failed) still resolves via get_authenticated_user's
         own email fallback — see UserService.get_authenticated_user."""

@@ -640,6 +640,33 @@ class CognitoAuthService:
         except BotoCoreError as exc:
             raise CognitoError(MSG_AUTH_AWS_UNAVAILABLE.format(detail=exc)) from exc
 
+    async def admin_update_user_name(self, *, email: str, name: str) -> None:
+        """Overwrite the Cognito ``name`` attribute via ``AdminUpdateUserAttributes``.
+
+        Used when an invitation reuses an existing Cognito identity (and again
+        at acceptance), so the ``name`` claim in the invitee's tokens is the
+        invitation's name, not whatever an earlier invitee left behind.
+        """
+        # SPEC: spec-6f88a1
+        username = _derive_cognito_username(email)
+
+        def _admin_update_name() -> None:
+            client = _cognito_client()
+            client.admin_update_user_attributes(
+                UserPoolId=settings.AWS_COGNITO_USER_POOL_ID,
+                Username=username,
+                UserAttributes=[{"Name": "name", "Value": name}],
+            )
+
+        try:
+            await asyncio.to_thread(_admin_update_name)
+        except ClientError as exc:
+            _map_cognito_error(exc, "admin_update_user_name")
+        except BotoCoreError as exc:
+            raise CognitoError(MSG_AUTH_AWS_UNAVAILABLE.format(detail=exc)) from exc
+
+        logger.info("Cognito name updated, email=<redacted>")
+
     # ── Admin removal (Client Admin / Super Admin remove-user flow) ─────────
 
     async def admin_delete_user(self, *, email: str) -> None:
