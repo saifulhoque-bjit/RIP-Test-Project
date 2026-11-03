@@ -89,6 +89,7 @@ interface PendingExplanation {
 
 export function useNotifications() {
   const token = useAppSelector((state) => state.auth.accessToken) ?? null;
+  const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
   const dispatch = useAppDispatch();
 
   const [markAllReadMutation] = useMarkAllReadMutation();
@@ -160,7 +161,7 @@ export function useNotifications() {
     );
   }, []);
 
-  useNotificationSocket(token, {
+  useNotificationSocket(token, isAuthenticated, {
     onCurrent,
     onNew,
     onRead,
