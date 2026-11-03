@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import { setSessionEndedInOtherTab } from "@/store/slices/authSlice";
 
 interface TenantState {
   activeTenantId: string | null;
@@ -29,6 +30,13 @@ const tenantSlice = createSlice({
         }
       }
     },
+  },
+  extraReducers: (builder) => {
+    // The stored tenant id now belongs to the other tab's session: drop it
+    // from this tab's state only.
+    builder.addCase(setSessionEndedInOtherTab, (state) => {
+      state.activeTenantId = null;
+    });
   },
 });
 

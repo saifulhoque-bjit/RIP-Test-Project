@@ -17,6 +17,7 @@ import storyFeedbackRegenerationReducer from '@/store/slices/storyFeedbackRegene
 import featureFeedbackRegenerationReducer from '@/store/slices/featureFeedbackRegenerationSlice';
 import pipelineCancellationReducer from '@/store/slices/pipelineCancellationSlice';
 import uiReducer from '@/store/slices/toastSlice';
+import { syncAuthAcrossTabs } from '@/store/crossTabAuthSync';
 
 export const store = configureStore({
   reducer: {
@@ -45,6 +46,9 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(baseApi.middleware),
 });
+
+// End this tab's session when another tab logs out or switches accounts.
+syncAuthAcrossTabs(store);
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
